@@ -368,17 +368,8 @@ body {
 .idle-flip      { animation: idleFlip 1s ease-in-out 1; }
 .idle-slide-l   { animation: idleSlideLeft 3s ease-in-out 1; }
 .idle-slide-r   { animation: idleSlideRight 3s ease-in-out 1; }
-.idle-melt      { animation: idleMelt 4s ease-in-out 1; }
+.idle-melt      { }
 .stage-wrap:has(.idle-melt) { overflow: visible; }
-
-@keyframes idleMelt {
-  0%   { transform: scaleY(1) scaleX(1) translateY(0); }
-  15%  { transform: scaleY(1.2) scaleX(1.4) translateY(5vh); }
-  45%  { transform: scaleY(0.3) scaleX(2.2) translateY(60vh); }
-  60%  { transform: scaleY(0.15) scaleX(2.8) translateY(75vh); }
-  75%  { transform: scaleY(0.2) scaleX(2.5) translateY(65vh); }
-  100% { transform: scaleY(1) scaleX(1) translateY(0); }
-}
 
 /* ── Peek-a-boo ── */
 .stage-wrap:has(.idle-peekaboo) { overflow: visible; }
@@ -977,13 +968,14 @@ body {
   pointer-events: auto;
 }
 
-.rm-btn[data-feature="chat"]       { --pos: translate(-117px, -124px);  transition-delay: 0.02s; }
-.rm-btn[data-feature="pomodoro"]   { --pos: translate(-162px, -37px);   transition-delay: 0.05s; }
-.rm-btn[data-feature="play"]       { --pos: translate(-134px, 61px);    transition-delay: 0.08s; }
-.rm-btn[data-feature="entertain"]  { --pos: translate(-46px, 124px);    transition-delay: 0.11s; }
-.rm-btn[data-feature="powers"]     { --pos: translate(58px, 124px);     transition-delay: 0.14s; }
-.rm-btn[data-feature="idletest"]   { --pos: translate(144px, 49px);     transition-delay: 0.17s; }
-.rm-btn[data-feature="settings"]   { --pos: translate(146px, -61px);    transition-delay: 0.20s; }
+.rm-btn[data-feature="chat"]       { --pos: translate(-120px, -120px);  transition-delay: 0.02s; }
+.rm-btn[data-feature="pomodoro"]   { --pos: translate(0px, -170px);     transition-delay: 0.05s; }
+.rm-btn[data-feature="play"]       { --pos: translate(120px, -120px);   transition-delay: 0.08s; }
+.rm-btn[data-feature="entertain"]  { --pos: translate(170px, 0px);      transition-delay: 0.11s; }
+.rm-btn[data-feature="powers"]     { --pos: translate(120px, 120px);    transition-delay: 0.14s; }
+.rm-btn[data-feature="idletest"]   { --pos: translate(0px, 170px);      transition-delay: 0.17s; }
+.rm-btn[data-feature="music"]      { --pos: translate(-120px, 120px);   transition-delay: 0.20s; }
+.rm-btn[data-feature="settings"]   { --pos: translate(-170px, 0px);     transition-delay: 0.23s; }
 
 .rm-btn:active { transform: translate(-50%, -50%) var(--pos) scale(0.88) !important; }
 

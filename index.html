@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v29';
+      var V='v30';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('blub.activeSw')===V)return;
@@ -74,7 +74,8 @@
               <button class="rm-btn" data-feature="entertain" style="--i:3">🎭<span>Entertain</span></button>
               <button class="rm-btn" data-feature="powers" style="--i:4">⚡<span>Powers</span></button>
               <button class="rm-btn" data-feature="idletest" style="--i:5">🧪<span>Test Idle</span></button>
-              <button class="rm-btn" data-feature="settings" style="--i:6">⚙️<span>Atur</span></button>
+              <button class="rm-btn" data-feature="music" style="--i:6">🎵<span>Music</span></button>
+              <button class="rm-btn" data-feature="settings" style="--i:7">⚙️<span>Atur</span></button>
             </div>
 
             <div id="idleRadial" class="sub-radial hidden">
@@ -187,6 +188,21 @@
               <button class="play-card" data-ent="puisi">📝 Puisi</button>
               <button class="play-card" data-ent="tantangan">🎯 Tantangan Seru</button>
             </div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panelMusic" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelMusic">←</button>
+            <span class="panel-title">🎵 Music Dance</span>
+          </div>
+          <div class="panel-body pomo-center">
+            <p class="pomo-label" id="musicStatus">Blob menari mengikuti irama musik!</p>
+            <div class="play-grid">
+              <button class="play-card" id="musicMic">🎤 Dengar dari Mic</button>
+              <button class="play-card" id="musicStop">⏹️ Stop Dance</button>
+            </div>
+            <p class="hint" style="margin-top:12px;text-align:center;">Putar musik dari app lain, lalu pilih "Dengar dari Mic". Blob akan menari mengikuti beat & tempo!</p>
           </div>
         </section>
 

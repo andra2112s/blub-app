@@ -1,5 +1,7 @@
 ﻿const MEM_KEY = 'blub.memory';
 const HIST_KEY = 'blub.history';
+const USAGE_KEY = 'blub.usage';
+const FREE_LIMIT = 30;
 
 export let PERSONA = detectPersona();
 
@@ -15,6 +17,10 @@ function detectPersona() {
     return 'Mochi';
   }
 }
+
+const BUILTIN_KEY = '';
+const BUILTIN_URL = 'https://ai.sumopod.com/v1';
+const BUILTIN_MODEL = 'gpt-5-nano';
 
 const COLOR_WORDS = {
   hitam: 'encre', coklat: 'brun', merah: 'rouge', oranye: 'orange',
@@ -50,6 +56,34 @@ export function createBrain() {
   const clearHist = () => { history = []; localStorage.removeItem(HIST_KEY); };
 
   const getSettings = () => load('blub.settings', { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '' });
+
+  function getUsage() {
+    try {
+      const raw = localStorage.getItem(USAGE_KEY);
+      if (!raw) return { count: 0, date: new Date().toDateString() };
+      const data = JSON.parse(raw);
+      if (data.date !== new Date().toDateString()) return { count: 0, date: new Date().toDateString() };
+      return data;
+    } catch { return { count: 0, date: new Date().toDateString() }; }
+  }
+  function bumpUsage() {
+    const u = getUsage();
+    u.count++;
+    u.date = new Date().toDateString();
+    localStorage.setItem(USAGE_KEY, JSON.stringify(u));
+  }
+  function getRemainingFree() {
+    if (BUILTIN_KEY) return Math.max(0, FREE_LIMIT - getUsage().count);
+    return 0;
+  }
+  function resolveApiConfig() {
+    const cfg = getSettings();
+    if (cfg.url && cfg.key && cfg.model) return { ...cfg, owned: true };
+    if (BUILTIN_KEY && getUsage().count < FREE_LIMIT) {
+      return { url: BUILTIN_URL, key: BUILTIN_KEY, model: BUILTIN_MODEL, sys: cfg.sys, owned: false };
+    }
+    return null;
+  }
 
   const jokes = [
     'Kenapa laptop nggak pernah lapar? Karena sudah kenyang makan data! 🥁',
@@ -639,9 +673,7 @@ export function createBrain() {
     return null;
   }
 
-  async function callApi(text) {
-    const cfg = getSettings();
-    if (!cfg.url || !cfg.model) throw new Error('no-api');
+  async function callApi(text, cfg) {
     const base = cfg.url.replace(/\/+$/, '');
     const messages = [
       { role: 'system', content: cfg.sys || `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik. Kamu selalu ingat nama pengguna (${mem.name || 'tidak diketahui'}) dan hal-hal yang mereka sukai (${(mem.likes || []).join(', ') || 'belum diketahui'}), dan dari mana mereka (${mem.from || 'belum diketahui'}).` },
@@ -663,12 +695,15 @@ export function createBrain() {
 
   async function reply(text) {
     pushHist('user', text);
-    const cfg = getSettings();
-    if (cfg.url && cfg.key && cfg.model) {
+    const apiCfg = resolveApiConfig();
+    if (apiCfg) {
       try {
-        const apiText = await callApi(text);
+        const apiText = await callApi(text, apiCfg);
+        if (!apiCfg.owned) bumpUsage();
         pushHist('assistant', apiText);
-        return { text: apiText, state: 'talk' };
+        const remaining = getRemainingFree();
+        const extra = (!apiCfg.owned && remaining > 0 && remaining <= 5) ? `\n\n💡 Sisa free AI: ${remaining}/${FREE_LIMIT}. Masukkan API Key sendiri di ⚙️ untuk unlimited!` : '';
+        return { text: apiText + extra, state: 'talk' };
       } catch {}
     }
     await new Promise((r) => setTimeout(r, 300 + Math.min(text.length * 15, 500)));
@@ -689,6 +724,7 @@ export function createBrain() {
       mem = { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] };
       saveMem(); clearHist();
     },
-    clearHistoryOnly: clearHist
+    clearHistoryOnly: clearHist,
+    getRemainingFree
   };
 }

@@ -275,6 +275,12 @@ export class BlobCharacter {
     clearTimeout(this.fxTimer);
     this.mood = 'idle';
     const stage = this.svg.closest('.stage');
+
+    if (fx === 'burst') {
+      this._playBurstWithFuse(stage);
+      return;
+    }
+
     if (stage) stage.classList.add('power');
     this.engine.setState(fx, nowSec());
 
@@ -282,8 +288,6 @@ export class BlobCharacter {
     flash.className = 'power-flash ' + fx;
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 700);
-
-    if (fx === 'burst') this._spawnBurstParticles();
 
     if (fx === 'comet') {
       if (stage) stage.classList.add('comet-fly');
@@ -306,55 +310,313 @@ export class BlobCharacter {
     }
   }
 
-  _spawnBurstParticles() {
+  _playBurstWithFuse(stage) {
     const NS = 'http://www.w3.org/2000/svg';
-    const count = 18;
-    const g = document.createElementNS(NS, 'g');
-    this.svg.append(g);
+    const svg = this.svg;
 
-    const particles = [];
-    const colors = ['#ff6b35','#ff4444','#ffaa00','#ff8855','#ff2222','#ffcc00','#ff5533'];
+    if (stage) stage.classList.add('power');
+    svg.style.transition = '';
 
-    for (let i = 0; i < count; i++) {
-      const c = document.createElementNS(NS, 'circle');
-      const r = 1.5 + Math.random() * 3.5;
-      const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.6;
-      const dist = 50 + Math.random() * 80;
-      const dur = 400 + Math.random() * 350;
-      const delay = Math.random() * 100;
-      const color = colors[i % colors.length];
+    const fuseG = document.createElementNS(NS, 'g');
+    fuseG.setAttribute('class', 'burst-fuse');
+    const fuseLine = document.createElementNS(NS, 'line');
+    fuseLine.setAttribute('x1', '0');
+    fuseLine.setAttribute('y1', '-120');
+    fuseLine.setAttribute('x2', '0');
+    fuseLine.setAttribute('y2', '-80');
+    fuseLine.setAttribute('stroke', '#888');
+    fuseLine.setAttribute('stroke-width', '3');
+    fuseLine.setAttribute('stroke-linecap', 'round');
+    fuseG.append(fuseLine);
 
-      c.setAttribute('cx', '0');
-      c.setAttribute('cy', '0');
-      c.setAttribute('r', String(r));
-      c.setAttribute('fill', color);
-      c.setAttribute('opacity', '1');
-      g.append(c);
+    const spark = document.createElementNS(NS, 'circle');
+    spark.setAttribute('cx', '0');
+    spark.setAttribute('cy', '-120');
+    spark.setAttribute('r', '5');
+    spark.setAttribute('fill', '#ff6600');
+    spark.setAttribute('filter', 'url(#glow)');
+    fuseG.append(spark);
 
-      particles.push({ el: c, angle, dist, dur, delay, r });
+    const fuseGlow = document.createElementNS(NS, 'circle');
+    fuseGlow.setAttribute('cx', '0');
+    fuseGlow.setAttribute('cy', '-120');
+    fuseGlow.setAttribute('r', '12');
+    fuseGlow.setAttribute('fill', 'rgba(255,100,0,0.3)');
+    fuseGlow.setAttribute('filter', 'blur(4px)');
+    fuseG.push && fuseG.append(fuseGlow);
+
+    svg.append(fuseG);
+
+    const FUSE_DUR = 1200;
+    const t0 = performance.now();
+
+    const animFuse = () => {
+      const elapsed = performance.now() - t0;
+      const p = Math.min(elapsed / FUSE_DUR, 1);
+      const fuseLen = 40 * (1 - p);
+      const headY = -120 + 40 * p;
+      const headX = Math.sin(p * 12) * 3;
+      fuseLine.setAttribute('y2', String(-80 + 40 * p));
+      fuseLine.setAttribute('stroke', p < 0.7 ? '#888' : '#555');
+      spark.setAttribute('cy', String(headY));
+      spark.setAttribute('cx', String(headX));
+      spark.setAttribute('r', String(4 + Math.sin(p * 30) * 1.5));
+      fuseGlow.setAttribute('cy', String(headY));
+      fuseGlow.setAttribute('r', String(10 + Math.sin(p * 20) * 4));
+
+      const flickerBright = 0.7 + Math.random() * 0.6;
+      spark.setAttribute('fill', `rgba(255,${Math.floor(80 + 80 * p)},0,${flickerBright})`);
+
+      if (p < 1) {
+        requestAnimationFrame(animFuse);
+      } else {
+        fuseG.remove();
+        this._shatterBurst(stage);
+      }
+    };
+    requestAnimationFrame(animFuse);
+  }
+
+  _shatterBurst(stage) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = this.svg;
+
+    const flash = document.createElement('div');
+    flash.className = 'power-flash burst';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 800);
+
+    svg.style.filter = 'brightness(2)';
+    svg.style.transform = 'scale(1.3)';
+
+    const origD = this.bodyEl.getAttribute('d');
+    const origOpacity = this.bodyEl.getAttribute('opacity');
+
+    const NUM_SHARDS = 12;
+    const shardGroup = document.createElementNS(NS, 'g');
+    svg.append(shardGroup);
+    this.bodyEl.setAttribute('opacity', '0');
+
+    for (const e of this.eyeEls) e.setAttribute('opacity', '0');
+
+    const shards = [];
+    for (let i = 0; i < NUM_SHARDS; i++) {
+      const path = document.createElementNS(NS, 'path');
+      const angle = (Math.PI * 2 * i) / NUM_SHARDS;
+      const nextAngle = (Math.PI * 2 * (i + 1)) / NUM_SHARDS;
+      const r1 = 40 + Math.random() * 30;
+      const r2 = 40 + Math.random() * 30;
+      const cx = Math.cos(angle) * r1 * 0.3;
+      const cy = Math.sin(angle) * r1 * 0.3;
+      const p1x = Math.cos(angle) * r1;
+      const p1y = Math.sin(angle) * r1;
+      const p2x = Math.cos(nextAngle) * r2;
+      const p2y = Math.sin(nextAngle) * r2;
+      const cp1x = Math.cos(angle + 0.3) * r1 * 0.8;
+      const cp1y = Math.sin(angle + 0.3) * r1 * 0.8;
+      const cp2x = Math.cos(nextAngle - 0.3) * r2 * 0.8;
+      const cp2y = Math.sin(nextAngle - 0.3) * r2 * 0.8;
+      path.setAttribute('d', `M${cx},${cy} Q${cp1x},${cp1y} ${p1x},${p1y} L0,0 L${p2x},${p2y} Q${cp2x},${cp2y} ${cx},${cy} Z`);
+      path.setAttribute('fill', '#0a0a0c');
+      path.setAttribute('stroke', 'rgba(255,100,0,0.3)');
+      path.setAttribute('stroke-width', '0.5');
+      shardGroup.append(path);
+
+      const speed = 80 + Math.random() * 120;
+      const spin = (Math.random() - 0.5) * 720;
+      shards.push({ el: path, angle, speed, spin, dist: 0 });
     }
 
     const t0 = performance.now();
+    const SHATTER_DUR = 800;
+    const REFORM_DUR = 600;
+    let phase = 'explode';
+
+    const animShatter = () => {
+      const elapsed = performance.now() - t0;
+
+      if (phase === 'explode') {
+        const p = Math.min(elapsed / SHATTER_DUR, 1);
+        const ease = 1 - Math.pow(1 - p, 2);
+        for (const s of shards) {
+          const d = s.speed * ease;
+          const dx = Math.cos(s.angle) * d;
+          const dy = Math.sin(s.angle) * d + p * p * 40;
+          s.dist = d;
+          s.el.setAttribute('transform', `translate(${dx.toFixed(1)},${dy.toFixed(1)}) rotate(${(s.spin * ease).toFixed(1)})`);
+          s.el.setAttribute('opacity', String((1 - p * 0.3).toFixed(2)));
+        }
+        if (p >= 1) {
+          phase = 'reform';
+          svg.style.transition = 'filter 0.6s, transform 0.6s';
+          svg.style.filter = '';
+          svg.style.transform = 'scale(1)';
+        } else {
+          requestAnimationFrame(animShatter);
+        }
+      } else if (phase === 'reform') {
+        const p = Math.min((elapsed - SHATTER_DUR) / REFORM_DUR, 1);
+        const ease = p * p;
+        for (const s of shards) {
+          const d = s.dist * (1 - ease);
+          const dx = Math.cos(s.angle) * d;
+          const dy = Math.sin(s.angle) * d + (1 - ease) * (1 - ease) * 40;
+          s.el.setAttribute('transform', `translate(${dx.toFixed(1)},${dy.toFixed(1)}) rotate(${(s.spin * (1 - ease)).toFixed(1)})`);
+          s.el.setAttribute('opacity', String((0.7 + 0.3 * ease).toFixed(2)));
+        }
+        if (p >= 1) {
+          shardGroup.remove();
+          this.bodyEl.setAttribute('opacity', origOpacity || '1');
+          for (const e of this.eyeEls) e.setAttribute('opacity', '1');
+          if (this.mood === 'idle') this.engine.setState('idle', nowSec());
+          if (stage) stage.classList.remove('power');
+        } else {
+          requestAnimationFrame(animShatter);
+        }
+      }
+    };
+    requestAnimationFrame(animShatter);
+  }
+
+  playMelt() {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = this.svg;
+    const stage = svg.closest('.stage');
+    const svgRect = svg.getBoundingClientRect();
+    const svgW = svgRect.width;
+    const svgH = svgRect.height;
+
+    this.engine.setState('idle', nowSec());
+
+    const meltGroup = document.createElementNS(NS, 'g');
+    svg.append(meltGroup);
+
+    const origD = this.bodyEl.getAttribute('d');
+    const origOpacity = this.bodyEl.getAttribute('opacity') || '1';
+
+    const DRIP_COUNT = 8;
+    const drips = [];
+    const angles = [];
+    for (let i = 0; i < DRIP_COUNT; i++) {
+      const a = (Math.PI * 2 * i) / DRIP_COUNT + (Math.random() - 0.5) * 0.4;
+      angles.push(a);
+      const path = document.createElementNS(NS, 'path');
+      path.setAttribute('fill', this.paperCache);
+      path.setAttribute('opacity', '0');
+      meltGroup.append(path);
+      drips.push({ el: path, angle: a, delay: i * 0.08 + Math.random() * 0.15, progress: 0, maxLen: 30 + Math.random() * 50, width: 4 + Math.random() * 6 });
+    }
+
+    const pool = document.createElementNS(NS, 'rect');
+    pool.setAttribute('x', String(-svgW * 0.6));
+    pool.setAttribute('y', String(80));
+    pool.setAttribute('width', String(svgW * 1.2));
+    pool.setAttribute('height', '0');
+    pool.setAttribute('rx', '4');
+    pool.setAttribute('fill', this.paperCache);
+    pool.setAttribute('opacity', '0');
+    meltGroup.append(pool);
+
+    const MELT_DUR = 5000;
+    const POOL_DUR = 2000;
+    const REFORM_DUR = 2500;
+    const t0 = performance.now();
+    const eyeOrigOpacities = this.eyeEls.map(e => e.getAttribute('opacity') || '1');
+
     const animate = () => {
       const elapsed = performance.now() - t0;
-      let alive = false;
-      for (const p of particles) {
-        const t = elapsed - p.delay;
-        if (t < 0) { alive = true; continue; }
-        const progress = Math.min(t / p.dur, 1);
-        const ease = 1 - Math.pow(1 - progress, 3);
-        const dx = Math.cos(p.angle) * p.dist * ease;
-        const dy = Math.sin(p.angle) * p.dist * ease;
-        const fade = 1 - progress;
-        const scale = 1 - progress * 0.6;
-        p.el.setAttribute('cx', dx.toFixed(1));
-        p.el.setAttribute('cy', dy.toFixed(1));
-        p.el.setAttribute('opacity', String(fade.toFixed(2)));
-        p.el.setAttribute('r', String((p.r * scale).toFixed(2)));
-        if (progress < 1) alive = true;
+
+      if (elapsed < MELT_DUR) {
+        const p = elapsed / MELT_DUR;
+        const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+
+        const scaleY = 1 - ease * 0.85;
+        const scaleX = 1 + ease * 0.6;
+        const translateY = ease * 50;
+        svg.style.transform = `translateY(${translateY}px) scale(${scaleX}, ${scaleY})`;
+        svg.style.transition = 'none';
+
+        for (const e of this.eyeEls) {
+          const eyeY = ease * 15;
+          e.setAttribute('transform', `translate(0, ${eyeY.toFixed(1)})`);
+          e.setAttribute('opacity', String((1 - ease * 0.9).toFixed(2)));
+        }
+
+        const poolW = ease * svgW * 0.9;
+        const poolH = ease * 12;
+        pool.setAttribute('y', String(80 - poolH * 0.3));
+        pool.setAttribute('height', String(poolH));
+        pool.setAttribute('width', String(poolW));
+        pool.setAttribute('x', String(-poolW / 2));
+        pool.setAttribute('opacity', String(Math.min(ease * 2, 0.85)));
+
+        for (const d of drips) {
+          const dp = Math.max(0, Math.min(1, (p - d.delay) / (1 - d.delay)));
+          if (dp <= 0) continue;
+          const dripEase = dp < 0.3 ? dp / 0.3 * 0.3 : 0.3 + (dp - 0.3) * 0.7 / 0.7;
+          const len = d.maxLen * dripEase;
+          const w = d.width * (1 + dp * 0.5);
+          const baseX = Math.cos(d.angle) * 65;
+          const baseY = Math.sin(d.angle) * 65;
+          const tipY = baseY + len;
+          const bulgeW = w * (1 + Math.sin(dp * Math.PI) * 0.6);
+
+          const d_path = `M${baseX - bulgeW / 2},${baseY} Q${baseX - w / 2},${baseY + len * 0.4} ${baseX - w * 0.3},${tipY - w} Q${baseX},${tipY + w * 0.8} ${baseX + w * 0.3},${tipY - w} Q${baseX + w / 2},${baseY + len * 0.4} ${baseX + bulgeW / 2},${baseY} Z`;
+          d.el.setAttribute('d', d_path);
+          d.el.setAttribute('opacity', String(Math.min(dp * 3, 0.9).toFixed(2)));
+        }
+
+        requestAnimationFrame(animate);
+      } else if (elapsed < MELT_DUR + POOL_DUR) {
+        const p = (elapsed - MELT_DUR) / POOL_DUR;
+        const poolW = svgW * 0.9 + p * svgW * 0.1;
+        const poolH = 12 + p * 8;
+        pool.setAttribute('height', String(poolH));
+        pool.setAttribute('width', String(poolW));
+        pool.setAttribute('x', String(-poolW / 2));
+        pool.setAttribute('opacity', String((0.85 + p * 0.1).toFixed(2)));
+
+        for (const d of drips) {
+          d.el.setAttribute('opacity', String((0.9 * (1 - p * 0.5)).toFixed(2)));
+        }
+
+        requestAnimationFrame(animate);
+      } else if (elapsed < MELT_DUR + POOL_DUR + REFORM_DUR) {
+        const p = (elapsed - MELT_DUR - POOL_DUR) / REFORM_DUR;
+        const ease = 1 - Math.pow(1 - p, 3);
+
+        const scaleY = 0.15 + ease * 0.85;
+        const scaleX = 1.6 - ease * 0.6;
+        const translateY = 50 * (1 - ease);
+        svg.style.transform = `translateY(${translateY}px) scale(${scaleX}, ${scaleY})`;
+
+        for (const e of this.eyeEls) {
+          e.setAttribute('transform', `translate(0, ${(15 * (1 - ease)).toFixed(1)})`);
+          e.setAttribute('opacity', String((0.1 + ease * 0.9).toFixed(2)));
+        }
+
+        const poolW = svgW * (1 - ease * 0.9);
+        const poolH = 20 * (1 - ease);
+        pool.setAttribute('height', String(poolH));
+        pool.setAttribute('width', String(poolW));
+        pool.setAttribute('x', String(-poolW / 2));
+        pool.setAttribute('opacity', String((0.95 * (1 - ease)).toFixed(2)));
+
+        for (const d of drips) {
+          d.el.setAttribute('opacity', String((0.45 * (1 - ease)).toFixed(2)));
+        }
+
+        requestAnimationFrame(animate);
+      } else {
+        svg.style.transform = '';
+        svg.style.transition = 'transform 0.5s ease-out';
+        for (const e of this.eyeEls) {
+          e.setAttribute('transform', '');
+          e.setAttribute('opacity', eyeOrigOpacities.shift());
+        }
+        meltGroup.remove();
+        if (this.mood === 'idle') this.engine.setState('idle', nowSec());
       }
-      if (alive) requestAnimationFrame(animate);
-      else g.remove();
     };
     requestAnimationFrame(animate);
   }
@@ -432,9 +694,33 @@ export function startIdleAnimations(svg, opts = {}) {
   const { onBubble, onPoke } = opts;
   let running = true;
   let currentClass = null;
+  let userActive = false;
+  let userActiveTimer = null;
+
+  function markUserActive() {
+    userActive = true;
+    if (currentClass) {
+      const computed = getComputedStyle(svg).transform;
+      svg.classList.remove('idle-anim', currentClass, ...PEEK_DIRS);
+      currentClass = null;
+      if (computed && computed !== 'none') {
+        svg.style.transform = computed;
+        svg.style.transition = 'transform 0.6s ease-out';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            svg.style.transform = '';
+            svg.addEventListener('transitionend', () => { svg.style.transition = ''; }, { once: true });
+          });
+        });
+      }
+    }
+    clearTimeout(userActiveTimer);
+    userActiveTimer = setTimeout(() => { userActive = false; scheduleNext(2000); }, 3000);
+    scheduleNext(2000);
+  }
 
   function pickIdle() {
-    if (!running) return;
+    if (!running || userActive) return;
     if (svg.closest('.stage')?.querySelector('.feature-panel:not([hidden])') ||
         svg.closest('.stage')?.classList.contains('power') ||
         svg.closest('.stage')?.classList.contains('color-flash')) {
@@ -516,6 +802,7 @@ export function startIdleAnimations(svg, opts = {}) {
         }
       }
     },
-    resume() { running = true; scheduleNext(); }
+    resume() { running = true; scheduleNext(); },
+    markUserActive
   };
 }

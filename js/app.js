@@ -1,5 +1,6 @@
 import { BlobCharacter, SHAPES_INFO, shapePreviewPath, startIdleAnimations } from './blubbot.js';
 import { createBrain, PERSONA, setPersona } from './brain.js';
+import { createMusicDancer } from './music.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -218,6 +219,7 @@ function scheduleIdle() {
 function initPointer() {
   const move = (e) => {
     blob.setPointer(e.clientX / innerWidth, e.clientY / innerHeight);
+    idleAnims.markUserActive();
   };
   window.addEventListener('pointermove', move, { passive: true });
   window.addEventListener('pointerdown', move, { passive: true });
@@ -234,6 +236,7 @@ function initPointer() {
       if (now - lastTilt < 40) return;
       lastTilt = now;
       blob.setPointer(nx, ny);
+      idleAnims.markUserActive();
     }, { passive: true });
   }
 
@@ -534,6 +537,18 @@ const idleAnims = startIdleAnimations(els.svg, {
   onBubble: (text, ms) => showBubble(text, ms)
 });
 
+const musicDancer = createMusicDancer(els.svg, blob);
+document.getElementById('musicMic')?.addEventListener('click', async () => {
+  const ok = await musicDancer.startFromMic();
+  document.getElementById('musicStatus').textContent = ok ? '🎶 Mendengarkan musik... Blob menari!' : '❌ Gagal akses mic. Coba lagi.';
+  if (ok) idleAnims.stop();
+});
+document.getElementById('musicStop')?.addEventListener('click', () => {
+  musicDancer.stop();
+  document.getElementById('musicStatus').textContent = 'Blob menari mengikuti irama musik!';
+  idleAnims.resume();
+});
+
 let menuOpen = false;
 
 function toggleRadialMenu() {
@@ -625,6 +640,7 @@ els.radialMenu.addEventListener('click', (e) => {
   else if (f === 'powers') { closeRadialMenu(); els.powersRadial.classList.remove('hidden'); }
   else if (f === 'idletest') { closeRadialMenu(); els.idleRadial.classList.remove('hidden'); }
   else if (f === 'settings') { closeRadialMenu(); els.settingsDlg.showModal(); }
+  else if (f === 'music') { closeRadialMenu(); openPanel('panelMusic'); }
 });
 
 document.querySelectorAll('.btn-back').forEach((btn) => {
@@ -780,7 +796,17 @@ document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
   btn.addEventListener('click', () => {
     idleAnims.stop();
     const svg = els.svg;
-    const cls = 'idle-' + btn.dataset.idle;
+    const idleType = btn.dataset.idle;
+
+    if (idleType === 'melt') {
+      svg.classList.remove('idle-anim');
+      showBubble('▶ Leleh... 💧', 2000);
+      blob.playMelt();
+      setTimeout(() => { idleAnims.resume(); }, 10000);
+      return;
+    }
+
+    const cls = 'idle-' + idleType;
     const addClasses = [cls];
     if (cls === 'idle-peekaboo') addClasses.push(PEEK_DIRS[Math.floor(Math.random() * PEEK_DIRS.length)]);
     svg.classList.remove('idle-anim', ...PEEK_DIRS, 'idle-walk', 'idle-run', 'idle-float', 'idle-bounce', 'idle-grow', 'idle-shrink', 'idle-spin', 'idle-drift', 'idle-tilt', 'idle-jump', 'idle-sneak', 'idle-wiggle', 'idle-pulse', 'idle-wobble', 'idle-nod', 'idle-flip', 'idle-slide-l', 'idle-slide-r', 'idle-melt', 'idle-peekaboo');
@@ -818,7 +844,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
