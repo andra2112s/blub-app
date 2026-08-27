@@ -43,7 +43,9 @@ const els = {
   obNext: $('#obNext'),
   obSkip: $('#obSkip'),
   btnShape: $('#btnShape'),
-  btnShapes: $('#btnShapes')
+  btnShapes: $('#btnShapes'),
+  chatSidebar: $('#chatSidebar'),
+  chatClose: $('#chatClose')
 };
 
 const store = {
@@ -151,6 +153,7 @@ async function send(rawText) {
   const text = (rawText || '').trim();
   if (!text || busy) return;
   busy = true;
+  els.chatSidebar.classList.remove('hidden');
   idleAnims.stop();
   els.idleRadial.classList.add('hidden');
   els.powersRadial.classList.add('hidden');
@@ -218,6 +221,21 @@ function initPointer() {
   };
   window.addEventListener('pointermove', move, { passive: true });
   window.addEventListener('pointerdown', move, { passive: true });
+
+  if (window.DeviceOrientationEvent) {
+    let lastTilt = 0;
+    window.addEventListener('deviceorientation', (e) => {
+      if (e.gamma === null && e.beta === null) return;
+      const x = (e.gamma || 0);
+      const y = (e.beta || 0);
+      const nx = Math.max(0, Math.min(1, (x + 45) / 90));
+      const ny = Math.max(0, Math.min(1, (y + 45) / 90));
+      const now = Date.now();
+      if (now - lastTilt < 50) return;
+      lastTilt = now;
+      blob.setPointer(nx, ny);
+    }, { passive: true });
+  }
 }
 
 function initMic() {
@@ -569,7 +587,17 @@ els.radialMenu.addEventListener('click', (e) => {
   const btn = e.target.closest('.rm-btn');
   if (!btn) return;
   const f = btn.dataset.feature;
-  if (f === 'chat') { closeRadialMenu(); els.input.focus(); }
+  if (f === 'chat') {
+    closeRadialMenu();
+    const sb = els.chatSidebar;
+    const visible = !sb.classList.contains('hidden');
+    if (visible) {
+      sb.classList.add('hidden');
+    } else {
+      sb.classList.remove('hidden');
+      setTimeout(() => els.input.focus(), 100);
+    }
+  }
   else if (f === 'pomodoro') openPanel('panelPomodoro');
   else if (f === 'play') openPanel('panelPlay');
   else if (f === 'entertain') openPanel('panelEntertain');
@@ -580,6 +608,10 @@ els.radialMenu.addEventListener('click', (e) => {
 
 document.querySelectorAll('.btn-back').forEach((btn) => {
   btn.addEventListener('click', () => closePanel(btn.dataset.close));
+});
+
+els.chatClose.addEventListener('click', () => {
+  els.chatSidebar.classList.add('hidden');
 });
 
 els.stage.addEventListener('click', (e) => {
@@ -765,7 +797,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v27';
+const APP_VERSION = 'v28';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
