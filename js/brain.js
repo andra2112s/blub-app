@@ -55,7 +55,7 @@ export function createBrain() {
   };
   const clearHist = () => { history = []; localStorage.removeItem(HIST_KEY); };
 
-  const getSettings = () => load('blub.settings', { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '' });
+  const getSettings = () => load('blub.settings', { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '', deepseekKey: '' });
 
   function getUsage() {
     try {
@@ -81,6 +81,9 @@ export function createBrain() {
     if (cfg.url && cfg.key && cfg.model) return { ...cfg, owned: true };
     if (BUILTIN_KEY && getUsage().count < FREE_LIMIT) {
       return { url: BUILTIN_URL, key: BUILTIN_KEY, model: BUILTIN_MODEL, sys: cfg.sys, owned: false };
+    }
+    if (cfg.deepseekKey) {
+      return { url: 'https://api.deepseek.com/v1', key: cfg.deepseekKey, model: 'deepseek-chat', sys: cfg.sys, owned: true };
     }
     return null;
   }
