@@ -1,26 +1,19 @@
 ﻿const MEM_KEY = 'blub.memory';
 const HIST_KEY = 'blub.history';
-const USAGE_KEY = 'blub.usage';
-const FREE_LIMIT = 30;
 
-export let PERSONA = detectPersona();
-
-export function setPersona(name) {
-  if (name === 'Dodol' || name === 'Mochi') PERSONA = name;
-}
+let PERSONA = detectPersona();
 
 function detectPersona() {
   try {
     const langs = navigator.languages?.length ? navigator.languages : [navigator.language || ''];
     return langs.some((l) => /^id/i.test(l)) ? 'Dodol' : 'Mochi';
-  } catch {
-    return 'Mochi';
-  }
+  } catch { return 'Mochi'; }
 }
 
-const BUILTIN_KEY = '';
-const BUILTIN_URL = 'https://ai.sumopod.com/v1';
-const BUILTIN_MODEL = 'gpt-5-nano';
+export function setPersona(name) {
+  if (name === 'Dodol' || name === 'Mochi') PERSONA = name;
+}
+export { PERSONA };
 
 const COLOR_WORDS = {
   hitam: 'encre', coklat: 'brun', merah: 'rouge', oranye: 'orange',
@@ -55,37 +48,12 @@ export function createBrain() {
   };
   const clearHist = () => { history = []; localStorage.removeItem(HIST_KEY); };
 
-  const getSettings = () => load('blub.settings', { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '', deepseekKey: '' });
+  const getSettings = () => load('blub.settings', { url: '', key: '', model: '', sys: '' });
 
-  function getUsage() {
-    try {
-      const raw = localStorage.getItem(USAGE_KEY);
-      if (!raw) return { count: 0, date: new Date().toDateString() };
-      const data = JSON.parse(raw);
-      if (data.date !== new Date().toDateString()) return { count: 0, date: new Date().toDateString() };
-      return data;
-    } catch { return { count: 0, date: new Date().toDateString() }; }
-  }
-  function bumpUsage() {
-    const u = getUsage();
-    u.count++;
-    u.date = new Date().toDateString();
-    localStorage.setItem(USAGE_KEY, JSON.stringify(u));
-  }
-  function getRemainingFree() {
-    if (BUILTIN_KEY) return Math.max(0, FREE_LIMIT - getUsage().count);
-    return 0;
-  }
   function resolveApiConfig() {
     const cfg = getSettings();
-    if (cfg.url && cfg.key && cfg.model) return { ...cfg, owned: true };
-    if (BUILTIN_KEY && getUsage().count < FREE_LIMIT) {
-      return { url: BUILTIN_URL, key: BUILTIN_KEY, model: BUILTIN_MODEL, sys: cfg.sys, owned: false };
-    }
-    if (cfg.deepseekKey) {
-      return { url: 'https://api.deepseek.com/v1', key: cfg.deepseekKey, model: 'deepseek-chat', sys: cfg.sys, owned: true };
-    }
-    return null;
+    if (cfg.url && cfg.key && cfg.model) return { ...cfg, owned: true, via: 'custom' };
+    return { via: 'server' };
   }
 
   const jokes = [
@@ -676,39 +644,75 @@ export function createBrain() {
     return null;
   }
 
-  async function callApi(text, cfg) {
+  async function callApiServer(text, sysPrompt) {
+    const base = location.origin;
+    const res = await fetch(base + '/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages: [
+          { role: 'system', content: sysPrompt },
+          ...history.slice(-20),
+          { role: 'user', content: text }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error('api-' + res.status);
+    const data = await res.json();
+    if (data.fallback) throw new Error('no-provider');
+    return data;
+  }
+
+  async function callApiDirect(text, cfg) {
     const base = cfg.url.replace(/\/+$/, '');
-    const messages = [
-      { role: 'system', content: cfg.sys || `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik. Kamu selalu ingat nama pengguna (${mem.name || 'tidak diketahui'}) dan hal-hal yang mereka sukai (${(mem.likes || []).join(', ') || 'belum diketahui'}), dan dari mana mereka (${mem.from || 'belum diketahui'}).` },
-      ...history.slice(-20),
-      { role: 'user', content: text }
-    ];
+    const sysPrompt = cfg.sys || `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik.`;
     const res = await fetch(base + '/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(cfg.key ? { Authorization: 'Bearer ' + cfg.key } : {})
       },
-      body: JSON.stringify({ model: cfg.model, messages, temperature: 0.85, max_tokens: 300 })
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [
+          { role: 'system', content: sysPrompt },
+          ...history.slice(-20),
+          { role: 'user', content: text }
+        ],
+        temperature: 0.85,
+        max_tokens: 300
+      })
     });
     if (!res.ok) throw new Error('api-' + res.status);
     const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() || '';
+    const content = data.choices?.[0]?.message?.content?.trim() || '';
+    return { content, provider: 'custom', remaining: null };
   }
+
+  const DEFAULT_SYS = () => `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik. Kamu selalu ingat nama pengguna (${mem.name || 'tidak diketahui'}) dan hal-hal yang mereka sukai (${(mem.likes || []).join(', ') || 'belum diketahui'}), dan dari mana mereka (${mem.from || 'belum diketahui'}).`;
 
   async function reply(text) {
     pushHist('user', text);
+    const cfg = getSettings();
     const apiCfg = resolveApiConfig();
-    if (apiCfg) {
+
+    if (apiCfg.via === 'custom') {
       try {
-        const apiText = await callApi(text, apiCfg);
-        if (!apiCfg.owned) bumpUsage();
-        pushHist('assistant', apiText);
-        const remaining = getRemainingFree();
-        const extra = (!apiCfg.owned && remaining > 0 && remaining <= 5) ? `\n\n💡 Sisa free AI: ${remaining}/${FREE_LIMIT}. Masukkan API Key sendiri di ⚙️ untuk unlimited!` : '';
-        return { text: apiText + extra, state: 'talk' };
+        const result = await callApiDirect(text, apiCfg);
+        pushHist('assistant', result.content);
+        return { text: result.content, state: 'talk' };
       } catch {}
     }
+
+    try {
+      const result = await callApiServer(text, cfg.sys || DEFAULT_SYS());
+      const extra = (result.remaining !== null && result.remaining <= 5 && result.remaining >= 0)
+        ? `\n\n💡 Sisa free AI hari ini: ${result.remaining}. Masukkan API Key sendiri di ⚙️ untuk unlimited!`
+        : '';
+      pushHist('assistant', result.content);
+      return { text: result.content + extra, state: 'talk' };
+    } catch {}
+
     await new Promise((r) => setTimeout(r, 300 + Math.min(text.length * 15, 500)));
     const local = localReply(text);
     pushHist('assistant', local.text);
@@ -727,7 +731,6 @@ export function createBrain() {
       mem = { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] };
       saveMem(); clearHist();
     },
-    clearHistoryOnly: clearHist,
-    getRemainingFree
+    clearHistoryOnly: clearHist
   };
 }

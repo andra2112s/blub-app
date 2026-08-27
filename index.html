@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v30';
+      var V='v31';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('blub.activeSw')===V)return;
@@ -283,9 +283,6 @@
         </label>
         <label>Model
           <input id="setModel" type="text" placeholder="gpt-5-nano" />
-        </label>
-        <label>🔑 DeepSeek API Key (fallback saat free habis)
-          <input id="setDeepseek" type="password" placeholder="sk-... (opsional, dari platform.deepseek.com)" />
         </label>
         <label>Kepribadian (system prompt)
           <textarea id="setSys" rows="3" placeholder="Kamu adalah Blub…"></textarea>

@@ -35,7 +35,6 @@ const els = {
   setKey: $('#setKey'),
   setModel: $('#setModel'),
   setSys: $('#setSys'),
-  setDeepseek: $('#setDeepseek'),
   setSave: $('#setSave'),
   setReset: $('#setReset'),
   obDlg: $('#obDlg'),
@@ -314,14 +313,13 @@ function initTheme() {
 }
 
 function initSettings() {
-  const defaults = { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '', deepseekKey: '' };
+  const defaults = { url: '', key: '', model: '', sys: '' };
   const open = () => {
     const cfg = { ...defaults, ...JSON.parse(store.get('blub.settings', '{}')) };
     els.setUrl.value = cfg.url || '';
     els.setKey.value = cfg.key || '';
     els.setModel.value = cfg.model || '';
     els.setSys.value = cfg.sys || '';
-    els.setDeepseek.value = cfg.deepseekKey || '';
     els.settingsDlg.showModal();
   };
   els.btnSettings.addEventListener('click', open);
@@ -332,8 +330,7 @@ function initSettings() {
         url: els.setUrl.value.trim(),
         key: els.setKey.value.trim(),
         model: els.setModel.value.trim(),
-        sys: els.setSys.value.trim(),
-        deepseekKey: els.setDeepseek.value.trim()
+        sys: els.setSys.value.trim()
       })
     );
     els.settingsDlg.close();
@@ -847,7 +844,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v31';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
