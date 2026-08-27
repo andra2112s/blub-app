@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+    (function(){
+      var V='v27';
+      try{
+        if(!('serviceWorker' in navigator)||!('caches' in window))return;
+        if(localStorage.getItem('blub.activeSw')===V)return;
+        localStorage.setItem('blub.activeSw',V);
+        navigator.serviceWorker.getRegistrations().then(function(r){
+          return Promise.all(r.map(function(x){return x.unregister()}));
+        }).then(function(){
+          return caches.keys();
+        }).then(function(k){
+          return Promise.all(k.filter(function(n){return n.indexOf('blub-')===0}).map(function(n){return caches.delete(n)}));
+        }).then(function(){location.reload()});
+      }catch(e){}
+    })();
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Blub — Teman AI Interaktif</title>
+    <meta name="description" content="Blub adalah avatar blob animasi yang bisa diajak ngobrol, merespons sentuhan, dan menemanimu. Install di HP maupun PC." />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Blub" />
+    <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)" />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <span class="brand-name">blub</span>
+        </div>
+        <div class="actions">
+          <button id="btnShapes" class="btn ghost on" aria-label="Ganti bentuk badan" title="Ganti bentuk badan Blub">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a7 7 0 0 1 7 7c0 1.53-.49 2.95-1.33 4.1.83.63 1.33 1.55 1.33 2.65 0 2.16-2.01 3.75-4.5 3.75h-5c-2.49 0-4.5-1.59-4.5-3.75 0-1.1.5-2.02 1.33-2.65A6.96 6.96 0 0 1 5 10a7 7 0 0 1 7-7Z"/></svg>
+          </button>
+          <button id="btnInstall" class="btn ghost hidden" aria-label="Pasang aplikasi" title="Pasang aplikasi">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.17l2.88-2.88a1 1 0 1 1 1.41 1.41l-4.58 4.59a1 1 0 0 1-1.42 0L6.71 11.7A1 1 0 1 1 8.12 10.3L11 13.17V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
+            <span>Pasang</span>
+          </button>
+          <button id="btnMic" class="btn ghost hidden" aria-label="Ngomong ke Blub" title="Ngomong ke Blub">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a3 3 0 0 1 3 3v6a3 3 0 1 1-6 0V6a3 3 0 0 1 3-3Zm-7 9a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V21a1 1 0 1 1-2 0v-2.07A7 7 0 0 1 5 12Z"/></svg>
+          </button>
+          <button id="btnSound" class="btn ghost on" aria-label="Suara" title="Suara nyala/mati">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M4 9h3l4.3-3.6A1 1 0 0 1 13 6.2v11.6a1 1 0 0 1-1.7.74L7 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1Zm11.3-.7a1 1 0 0 1 1.4 0 5 5 0 0 1 0 7.2 1 1 0 1 1-1.4-1.44 3 3 0 0 0 0-4.32 1 1 0 0 1 0-1.44Z"/></svg>
+          </button>
+          <button id="btnSettings" class="btn ghost" aria-label="Pengaturan" title="Pengaturan AI (API)">
+            <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="m10.2 3 .3 2a7 7 0 0 0-1.7 1L6.9 5.3a1 1 0 0 0-1.2.44l-1.8 3.1a1 1 0 0 0 .25 1.26L6 11.4a7.1 7.1 0 0 0 0 2l-1.86 1.28a1 1 0 0 0-.26 1.27l1.8 3.1a1 1 0 0 0 1.22.43l1.9-.72a7 7 0 0 0 1.7 1l.29 2.02a1 1 0 0 0 1 .86h3.6a1 1 0 0 0 1-.86l.3-2.03a7 7 0 0 0 1.68-.99l1.92.72a1 1 0 0 0 1.21-.44l1.8-3.09a1 1 0 0 0-.25-1.27L19.4 13.4a7.1 7.1 0 0 0 0-2l1.85-1.28a1 1 0 0 0 .26-1.27l-1.8-3.1a1 1 0 0 0-1.22-.43l-1.9.73a7 7 0 0 0-1.69-1l-.29-2.03a1 1 0 0 0-1-.87h-3.6a1 1 0 0 0-1 .86ZM14.7 15a3.5 3.5 0 1 1-3.4-6.1A3.5 3.5 0 0 1 14.7 15Z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <div class="stage-wrap">
+          <section id="stage" class="stage" aria-label="Blub si blob — teman AI interaktif">
+            <div id="bubble" class="bubble hidden"></div>
+            <div id="zzz" class="zzz hidden" aria-hidden="true"><span>z</span><span>z</span><span>z</span></div>
+            <svg id="blobSvg" viewBox="-158 -158 316 316" role="img" aria-label="Blub"></svg>
+
+            <div id="radialMenu" class="radial-menu hidden">
+              <button class="rm-btn" data-feature="chat" style="--i:0">💬<span>Chat</span></button>
+              <button class="rm-btn" data-feature="pomodoro" style="--i:1">⏱️<span>Pomodoro</span></button>
+              <button class="rm-btn" data-feature="play" style="--i:2">🎮<span>Play</span></button>
+              <button class="rm-btn" data-feature="entertain" style="--i:3">🎭<span>Entertain</span></button>
+              <button class="rm-btn" data-feature="powers" style="--i:4">⚡<span>Powers</span></button>
+              <button class="rm-btn" data-feature="idletest" style="--i:5">🧪<span>Test Idle</span></button>
+              <button class="rm-btn" data-feature="settings" style="--i:6">⚙️<span>Atur</span></button>
+            </div>
+
+            <div id="idleRadial" class="sub-radial hidden">
+              <button class="srm-back" id="idleRadialBack">←</button>
+              <button class="srm-btn" data-idle="walk">🚶<span>Walk</span></button>
+              <button class="srm-btn" data-idle="run">🏃<span>Run</span></button>
+              <button class="srm-btn" data-idle="float">🫧<span>Float</span></button>
+              <button class="srm-btn" data-idle="bounce">⬆️<span>Bounce</span></button>
+              <button class="srm-btn" data-idle="grow">🔵<span>Grow</span></button>
+              <button class="srm-btn" data-idle="shrink">⚫<span>Shrink</span></button>
+              <button class="srm-btn" data-idle="spin">🔄<span>Spin</span></button>
+              <button class="srm-btn" data-idle="drift">🌊<span>Drift</span></button>
+              <button class="srm-btn" data-idle="tilt">↗️<span>Tilt</span></button>
+              <button class="srm-btn" data-idle="jump">🦘<span>Jump</span></button>
+              <button class="srm-btn" data-idle="sneak">🤫<span>Sneak</span></button>
+              <button class="srm-btn" data-idle="wiggle">🪱<span>Wiggle</span></button>
+              <button class="srm-btn" data-idle="pulse">💓<span>Pulse</span></button>
+              <button class="srm-btn" data-idle="wobble">🫠<span>Wobble</span></button>
+              <button class="srm-btn" data-idle="nod">😊<span>Nod</span></button>
+              <button class="srm-btn" data-idle="flip">🤸<span>Flip</span></button>
+              <button class="srm-btn" data-idle="slide-l">⬅️<span>Slide L</span></button>
+              <button class="srm-btn" data-idle="slide-r">➡️<span>Slide R</span></button>
+              <button class="srm-btn" data-idle="melt">💧<span>Melt</span></button>
+              <button class="srm-btn" data-idle="peekaboo">🫣<span>Peek</span></button>
+            </div>
+
+            <div id="powersRadial" class="sub-radial hidden">
+              <button class="srm-back" id="powersRadialBack">←</button>
+              <button class="srm-btn" data-fx="burst">💥<span>Burst</span></button>
+              <button class="srm-btn" data-fx="comet">☄️<span>Komet</span></button>
+              <button class="srm-btn" data-fx="orbit">🪐<span>Orbit</span></button>
+              <button class="srm-btn" data-fx="swirl">🌀<span>Swirl</span></button>
+              <button class="srm-btn" data-fx="exclaim">❗<span>Exclaim</span></button>
+              <button class="srm-btn" data-fx="notify">🔔<span>Notify</span></button>
+            </div>
+          </section>
+        </div>
+
+        <aside class="chat-sidebar">
+          <div id="chips" class="chips" aria-label="Saran cepat">
+            <button class="chip">halo!</button>
+            <button class="chip">kamu bisa apa?</button>
+            <button class="chip">namaku ...</button>
+            <button class="chip">meledak!</button>
+            <button class="chip">jadi komet!</button>
+            <button class="chip">mode planet!</button>
+            <button class="chip">jadi ungu</button>
+            <button class="chip">ceritain joke dong</button>
+          </div>
+          <div id="log" class="log" aria-live="polite"></div>
+          <form id="composer" class="composer" autocomplete="off">
+            <input id="input" type="text" placeholder="Ketik pesan…" maxlength="500" enterkeyhint="send" />
+            <button type="submit" class="btn send" aria-label="Kirim">
+              <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M3.4 20.3 21.8 12 3.4 3.7 3.4 10.2 15 12 3.4 13.8z"/></svg>
+            </button>
+          </form>
+        </aside>
+      </main>
+
+        <section class="feature-panel" id="panelPomodoro" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelPomodoro">←</button>
+            <span class="panel-title">⏱️ Pomodoro</span>
+          </div>
+          <div class="panel-body pomo-center">
+            <div class="pomo-timer" id="pomoTime">25:00</div>
+            <div class="pomo-label" id="pomoLabel">Siap mulai</div>
+            <div class="pomo-controls">
+              <button class="btn btn-pomo" id="pomoStart">Mulai</button>
+              <button class="btn btn-pomo" id="pomoReset" hidden>Reset</button>
+            </div>
+            <div class="pomo-sessions">Sesi selesai: <span id="pomoCount">0</span>/4</div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panelPlay" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelPlay">←</button>
+            <span class="panel-title">🎮 Play</span>
+          </div>
+          <div class="panel-body pomo-center">
+            <p class="pomo-label">Colek badanku atau pilih aksi di bawah!</p>
+            <div class="play-grid">
+              <button class="play-card" data-poke="1">👆 Poke Biasa</button>
+              <button class="play-card" data-color="merah">🔴 Jadi Merah</button>
+              <button class="play-card" data-color="biru">🔵 Jadi Biru</button>
+              <button class="play-card" data-color="hijau">🟢 Jadi Hijau</button>
+              <button class="play-card" data-color="ungu">🟣 Jadi Ungu</button>
+              <button class="play-card" data-color="kuning">🟡 Jadi Kuning</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panelEntertain" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelEntertain">←</button>
+            <span class="panel-title">🎭 Entertain</span>
+          </div>
+          <div class="panel-body pomo-center">
+            <p class="pomo-label">Pilih hiburan buat kamu!</p>
+            <div class="play-grid">
+              <button class="play-card" data-ent="joke">😂 Kasih Joke</button>
+              <button class="play-card" data-ent="motivasi">💪 Motivasi</button>
+              <button class="play-card" data-ent="fakta">🧠 Fakta Unik</button>
+              <button class="play-card" data-ent="cerita">📖 Cerita Pendek</button>
+              <button class="play-card" data-ent="puisi">📝 Puisi</button>
+              <button class="play-card" data-ent="tantangan">🎯 Tantangan Seru</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+
+    <dialog id="obDlg" class="dlg ob">
+      <div class="dlg-body">
+        <div id="obDots" class="dots" aria-hidden="true"></div>
+        <section class="ob-step" data-step="0">
+          <div class="ob-hero">🫧</div>
+          <h2>Halo, kenalin! 👋</h2>
+          <p class="hint">
+            Aku <b class="persona-name">Dodol</b> — blob hitam kenyal yang bisa ngobrol,
+            punya super power, dan nemenin harimu!
+          </p>
+          <div class="persona-picker">
+            <button type="button" class="chip" data-persona="Dodol">🇮🇩 Panggil aku Dodol</button>
+            <button type="button" class="chip" data-persona="Mochi">🌍 Call me Mochi</button>
+          </div>
+          <p class="hint ob-label">Pilih bentuk badanku:</p>
+          <div id="shapeGrid" class="shape-grid"></div>
+        </section>
+        <section class="ob-step" data-step="1" hidden>
+          <h2>Panggil aku apa?</h2>
+          <input id="obName" type="text" placeholder="mis. Rian, Sari, Bang Jack…" maxlength="24" />
+          <p class="hint">Boleh dikosongkan — aku tetap memanggilmu "kamu". Aku akan mengingatnya selamanya (di perangkat ini).</p>
+        </section>
+        <section class="ob-step" data-step="2" hidden>
+          <h2>Tips singkat</h2>
+          <div class="install-step"><b>👆 Colek</b><span>badanku — lihat reaksinya!</span></div>
+          <div class="install-step"><b>⌨️ Ngobrol</b><span>apa saja; aku hafal nama & hobimu.</span></div>
+          <div class="install-step"><b>⚡ Super power</b><span>coba ketik "meledak!" atau "jadi komet!".</span></div>
+          <div class="install-step"><b>📦 Pasang</b><span>tombol "Pasang" agar seperti app asli di HP & PC.</span></div>
+        </section>
+        <div class="dlg-actions ob-actions">
+          <button id="obSkip" type="button" class="btn ghost">Lewati</button>
+          <span style="flex:1"></span>
+          <button id="obNext" type="button" class="btn primary">Mulai</button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="settingsDlg" class="dlg">
+      <form method="dialog" class="dlg-body">
+        <h2>Pengaturan</h2>
+        <p class="hint">
+          Blub jalan <b>offline</b> pakai otak lokal. Mau lebih pintar? Sambungkan ke API apa pun yang
+          kompatibel OpenAI (OpenAI, Groq, OpenRouter, Ollama lokal, dll). Kunci disimpan hanya di perangkatmu.
+        </p>
+        <label>Base URL
+          <input id="setUrl" type="url" placeholder="https://api.openai.com/v1" />
+        </label>
+        <label>API Key
+          <input id="setKey" type="password" placeholder="sk-… (opsional)" />
+        </label>
+        <label>Model
+          <input id="setModel" type="text" placeholder="gpt-4o-mini" />
+        </label>
+        <label>Kepribadian (system prompt)
+          <textarea id="setSys" rows="3" placeholder="Kamu adalah Blub…"></textarea>
+        </label>
+        <div class="dlg-actions">
+          <button id="btnShape" type="button" class="btn ghost">🎨 Ganti bentuk</button>
+          <button id="setReset" type="button" class="btn ghost">Hapus memori</button>
+          <button value="cancel" class="btn ghost">Tutup</button>
+          <button id="setSave" type="button" class="btn primary">Simpan</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="installDlg" class="dlg">
+      <div class="dlg-body">
+        <h2>Pasang Blub</h2>
+        <div id="installHow"></div>
+        <div class="dlg-actions">
+          <button value="close" class="btn primary">Oke</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
