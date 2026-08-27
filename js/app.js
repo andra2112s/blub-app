@@ -222,19 +222,39 @@ function initPointer() {
   window.addEventListener('pointermove', move, { passive: true });
   window.addEventListener('pointerdown', move, { passive: true });
 
-  if (window.DeviceOrientationEvent) {
+  function setupTilt() {
     let lastTilt = 0;
     window.addEventListener('deviceorientation', (e) => {
       if (e.gamma === null && e.beta === null) return;
-      const x = (e.gamma || 0);
-      const y = (e.beta || 0);
+      const x = e.gamma || 0;
+      const y = e.beta || 0;
       const nx = Math.max(0, Math.min(1, (x + 45) / 90));
       const ny = Math.max(0, Math.min(1, (y + 45) / 90));
       const now = Date.now();
-      if (now - lastTilt < 50) return;
+      if (now - lastTilt < 40) return;
       lastTilt = now;
       blob.setPointer(nx, ny);
     }, { passive: true });
+  }
+
+  if (window.DeviceOrientationEvent) {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const btn = document.createElement('button');
+      btn.className = 'tilt-permission-btn';
+      btn.textContent = '📱';
+      btn.title = 'Aktifkan tilt HP';
+      btn.style.cssText = 'position:fixed;bottom:16px;left:16px;z-index:99;width:44px;height:44px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:1.3rem;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3);';
+      btn.addEventListener('click', async () => {
+        try {
+          const perm = await DeviceOrientationEvent.requestPermission();
+          if (perm === 'granted') { setupTilt(); toast('Tilt aktif! Putar HP buat gerakin mata blob.'); }
+        } catch {}
+        btn.remove();
+      });
+      document.body.appendChild(btn);
+    } else {
+      setupTilt();
+    }
   }
 }
 
@@ -290,8 +310,9 @@ function initTheme() {
 }
 
 function initSettings() {
+  const defaults = { url: 'https://ai.sumopod.com/v1', key: '', model: 'gpt-5-nano', sys: '' };
   const open = () => {
-    const cfg = JSON.parse(store.get('blub.settings', '{}'));
+    const cfg = { ...defaults, ...JSON.parse(store.get('blub.settings', '{}')) };
     els.setUrl.value = cfg.url || '';
     els.setKey.value = cfg.key || '';
     els.setModel.value = cfg.model || '';
@@ -797,7 +818,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v28';
+      var V='v29';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('blub.activeSw')===V)return;
@@ -256,17 +256,17 @@
       <form method="dialog" class="dlg-body">
         <h2>Pengaturan</h2>
         <p class="hint">
-          Blub jalan <b>offline</b> pakai otak lokal. Mau lebih pintar? Sambungkan ke API apa pun yang
-          kompatibel OpenAI (OpenAI, Groq, OpenRouter, Ollama lokal, dll). Kunci disimpan hanya di perangkatmu.
+          Blub jalan <b>offline</b> pakai otak lokal. Aktifkan AI pintar lewat SumoPod —
+          Base URL & Model sudah terisi, tinggal masukkan API Key!
         </p>
         <label>Base URL
-          <input id="setUrl" type="url" placeholder="https://api.openai.com/v1" />
+          <input id="setUrl" type="url" placeholder="https://ai.sumopod.com/v1" />
         </label>
         <label>API Key
-          <input id="setKey" type="password" placeholder="sk-… (opsional)" />
+          <input id="setKey" type="password" placeholder="sk-... (dari sumopod.com)" />
         </label>
         <label>Model
-          <input id="setModel" type="text" placeholder="gpt-4o-mini" />
+          <input id="setModel" type="text" placeholder="gpt-5-nano" />
         </label>
         <label>Kepribadian (system prompt)
           <textarea id="setSys" rows="3" placeholder="Kamu adalah Blub…"></textarea>

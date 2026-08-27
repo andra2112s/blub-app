@@ -74,6 +74,19 @@ function resolvePaper() {
   return bg && bg !== 'rgba(0, 0, 0, 0)' ? bg : '#f6f4ef';
 }
 
+function resolveEyeColor() {
+  const paper = resolvePaper();
+  const dark = isColorDark(paper);
+  return dark ? '#d8d4e0' : paper;
+}
+
+function isColorDark(rgbStr) {
+  const m = rgbStr.match(/\d+/g);
+  if (!m || m.length < 3) return false;
+  const lum = (0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2]) / 255;
+  return lum < 0.25;
+}
+
 export class BlobCharacter {
   constructor(svg, opts = {}) {
     this.svg = svg;
@@ -109,6 +122,7 @@ export class BlobCharacter {
     this.lookActive = false;
 
     this.paperCache = resolvePaper();
+    this.eyeColorCache = resolveEyeColor();
     this._lastPaperRead = 0;
 
     this._raf = this._loop.bind(this);
@@ -146,8 +160,9 @@ export class BlobCharacter {
 
     if (now - this._lastPaperRead > 1) {
       this.paperCache = resolvePaper();
+      this.eyeColorCache = resolveEyeColor();
       this._lastPaperRead = now;
-      for (const e of this.eyeEls) e.setAttribute('fill', this.paperCache);
+      for (const e of this.eyeEls) e.setAttribute('fill', this.eyeColorCache);
     }
 
     if (this.lookActive && now - this.lastPointerT > 4) {
@@ -177,7 +192,7 @@ export class BlobCharacter {
       node.setAttribute('d', eye.d);
       node.setAttribute('transform', eye.matrix);
       node.setAttribute('opacity', eye.alpha.toFixed(2));
-      node.setAttribute('fill', this.paperCache);
+      node.setAttribute('fill', this.eyeColorCache);
     }
 
     this._syncDots(frame.dots, frame.dotsBehind);
