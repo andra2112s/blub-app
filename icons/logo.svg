@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bodyGrad" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#1a1a1f"/>
+      <stop offset="60%" stop-color="#0a0a0c"/>
+      <stop offset="100%" stop-color="#050508"/>
+    </radialGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background (safe area for maskable) -->
+  <rect width="1024" height="1024" fill="#f6f4ef" rx="0" ry="0"/>
+  <!-- Ground shadow -->
+  <ellipse cx="512" cy="790" rx="280" ry="50" fill="#000" opacity="0.18" filter="url(#glow)"/>
+  <!-- Blob body -->
+  <path d="M512 120
+           C 720 120, 870 270, 870 460
+           C 870 600, 810 720, 710 790
+           C 610 860, 410 860, 310 790
+           C 210 720, 150 600, 150 460
+           C 150 270, 300 120, 512 120 Z"
+        fill="url(#bodyGrad)" filter="url(#glow)"/>
+  <!-- Red cheek/spot accent -->
+  <circle cx="760" cy="340" r="90" fill="#e11d1d" opacity="0.95" filter="url(#glow)"/>
+  <!-- Eyes -->
+  <rect x="350" y="340" width="100" height="220" rx="50" ry="50" fill="#f0eff4"/>
+  <rect x="580" y="340" width="100" height="220" rx="50" ry="50" fill="#f0eff4"/>
+  <!-- Eye shine -->
+  <ellipse cx="370" cy="380" rx="18" ry="28" fill="#ffffff" opacity="0.8"/>
+  <ellipse cx="600" cy="380" rx="18" ry="28" fill="#ffffff" opacity="0.8"/>
+  <!-- Mouth (small smile) -->
+  <path d="M 450 660 Q 512 700 574 660" fill="none" stroke="#f0eff4" stroke-width="24" stroke-linecap="round"/>
+</svg>

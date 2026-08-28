@@ -7,6 +7,7 @@ const $ = (sel) => document.querySelector(sel);
 const els = {
   stage: $('#stage'),
   svg: $('#blobSvg'),
+  ground: $('#blobGround'),
   bubble: $('#bubble'),
   log: $('#log'),
   form: $('#composer'),
@@ -46,8 +47,50 @@ const els = {
   btnShape: $('#btnShape'),
   btnShapes: $('#btnShapes'),
   chatSidebar: $('#chatSidebar'),
-  chatClose: $('#chatClose')
+  chatClose: $('#chatClose'),
+  blobTimerOverlay: $('#blobTimerOverlay'),
+  blobTimerLabel: $('#blobTimerLabel'),
+  blobTimerStart: $('#blobTimerStart'),
+  blobTimerReset: $('#blobTimerReset'),
+  blobTimerClose: $('#blobTimerClose'),
+  blobTimerCount: $('#blobTimerCount')
 };
+
+/* ── Ground shadow: sync with blob transform (inline + CSS animations) ── */
+if (els.ground && els.svg) {
+  const BASE_OFFSET = 115;  // px below center (gap + flatten)
+  const FLATTEN = 0.55;     // scaleY multiplier for "penyet" look
+
+  const updateGround = () => {
+    // getComputedStyle captures both inline style AND CSS @keyframes animations
+    const matrix = getComputedStyle(els.svg).transform;
+    let tx = 0, ty = 0, sx = 1, sy = 1, rot = 0;
+    if (matrix && matrix !== 'none') {
+      // matrix(a, b, c, d, e, f) — e=tx, f=ty, a=sx*cos, d=sy*cos
+      const m = matrix.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
+      if (m) {
+        const a = parseFloat(m[1]);
+        const b = parseFloat(m[2]);
+        const d = parseFloat(m[4]);
+        tx = parseFloat(m[5]);
+        ty = parseFloat(m[6]);
+        sx = Math.sqrt(a * a + b * b);
+        sy = Math.sqrt(d * d + parseFloat(m[3]) * parseFloat(m[3]));
+        rot = Math.atan2(b, a) * 180 / Math.PI;
+      }
+    }
+    // Shadow follows horizontal movement, shrinks when blob goes up, stays flat
+    const shadowScaleX = Math.max(0.3, sx);
+    const shadowScaleY = Math.max(0.15, sy * FLATTEN);
+    const heightFactor = 1 - Math.min(Math.abs(ty) / 250, 0.65);
+    const shadowOpacity = Math.max(0.1, Math.min(1, sy) * heightFactor);
+    els.ground.style.transform =
+      `translate(calc(-50% + ${tx.toFixed(1)}px), calc(-50% + ${BASE_OFFSET + Math.max(ty, 0) * 0.2}px)) scaleX(${shadowScaleX.toFixed(2)}) scaleY(${shadowScaleY.toFixed(2)})`;
+    els.ground.style.opacity = shadowOpacity.toFixed(2);
+    requestAnimationFrame(updateGround);
+  };
+  requestAnimationFrame(updateGround);
+}
 
 const store = {
   get: (k, d) => localStorage.getItem(k) ?? d,
@@ -80,6 +123,81 @@ function playPop() {
     osc.start();
     osc.stop(ctx.currentTime + 0.2);
     osc.onended = () => ctx.close();
+  } catch {}
+}
+
+function playKnock() {
+  if (muted) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+
+    // 1. Sharp "tink" — glass tap transient (triangle, high freq, very fast)
+    const tink = ctx.createOscillator();
+    const tinkGain = ctx.createGain();
+    tink.type = 'triangle';
+    tink.frequency.setValueAtTime(4200, now);
+    tink.frequency.exponentialRampToValueAtTime(2800, now + 0.02);
+    tinkGain.gain.setValueAtTime(0.35, now);
+    tinkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    tink.connect(tinkGain).connect(ctx.destination);
+    tink.start(now);
+    tink.stop(now + 0.05);
+
+    // 2. Resonant ring — the "glass" character (sine, sustains briefly)
+    const ring = ctx.createOscillator();
+    const ringGain = ctx.createGain();
+    ring.type = 'sine';
+    ring.frequency.setValueAtTime(2600, now);
+    ring.frequency.exponentialRampToValueAtTime(2400, now + 0.15);
+    ringGain.gain.setValueAtTime(0.25, now);
+    ringGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    ring.connect(ringGain).connect(ctx.destination);
+    ring.start(now);
+    ring.stop(now + 0.2);
+
+    // 3. High harmonic — adds brightness/clarity (sine, 2x freq)
+    const harm = ctx.createOscillator();
+    const harmGain = ctx.createGain();
+    harm.type = 'sine';
+    harm.frequency.setValueAtTime(5200, now);
+    harm.frequency.exponentialRampToValueAtTime(4800, now + 0.1);
+    harmGain.gain.setValueAtTime(0.12, now);
+    harmGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    harm.connect(harmGain).connect(ctx.destination);
+    harm.start(now);
+    harm.stop(now + 0.14);
+
+    // 4. Noise transient — the "tap" attack (bandpass, very short)
+    const noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.03, ctx.sampleRate);
+    const ndata = noiseBuf.getChannelData(0);
+    for (let i = 0; i < ndata.length; i++) ndata[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / ndata.length, 4);
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.15, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 4500;
+    filter.Q.value = 3;
+    noise.connect(filter).connect(noiseGain).connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.04);
+
+    // 5. Subtle body thud — low freq, very quiet (physical impact)
+    const thud = ctx.createOscillator();
+    const thudGain = ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(180, now);
+    thud.frequency.exponentialRampToValueAtTime(80, now + 0.06);
+    thudGain.gain.setValueAtTime(0.08, now);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    thud.connect(thudGain).connect(ctx.destination);
+    thud.start(now);
+    thud.stop(now + 0.1);
+
+    tink.onended = () => ctx.close();
   } catch {}
 }
 
@@ -216,6 +334,39 @@ function scheduleIdle() {
   }, 9000 + Math.random() * 15000);
 }
 
+/* ── Auto-sleep: blob falls asleep after 30s of no interaction ── */
+let sleepTimer = null;
+let isSleeping = false;
+const SLEEP_DELAY = 30000; // 30 seconds
+
+function resetSleepTimer() {
+  if (sleepTimer) clearTimeout(sleepTimer);
+  if (isSleeping) wakeUp();
+  sleepTimer = setTimeout(() => {
+    if (!busy && blob.getState() === 'idle') fallAsleep();
+  }, SLEEP_DELAY);
+}
+
+function fallAsleep() {
+  isSleeping = true;
+  blob.setState('sleepy');
+  const snore = document.getElementById('snore');
+  if (snore) snore.classList.remove('hidden');
+  showBubble('Zzz… 😴', 3000);
+}
+
+function wakeUp() {
+  isSleeping = false;
+  const snore = document.getElementById('snore');
+  if (snore) snore.classList.add('hidden');
+  if (blob.getState() === 'sleepy') blob.setState('idle');
+}
+
+// Reset sleep timer on any user interaction
+['pointerdown', 'pointermove', 'keydown', 'click'].forEach(ev => {
+  document.addEventListener(ev, resetSleepTimer, { passive: true });
+});
+
 function initPointer() {
   const move = (e) => {
     blob.setPointer(e.clientX / innerWidth, e.clientY / innerHeight);
@@ -266,15 +417,26 @@ function initMic() {
   if (!SR) return;
   recognition = new SR();
   recognition.lang = 'id-ID';
-  recognition.interimResults = false;
+  recognition.interimResults = true;
+  recognition.continuous = false;
   recognition.maxAlternatives = 1;
   recognition.onresult = (e) => {
-    const said = e.results[0][0].transcript;
-    send(said);
+    let interim = '';
+    let final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const r = e.results[i];
+      if (r.isFinal) final += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    if (interim) showBubble('🎤 ' + interim, 4000);
+    if (final) send(final);
   };
   recognition.onend = () => {
     els.btnMic.classList.remove('on');
     if (blob.getState() === 'listen') blob.setState('idle');
+    // Restore main blob from mic shape
+    blob.exitMicMode();
+    voiceActive = false;
   };
   recognition.onerror = () => {};
   els.btnMic.classList.remove('hidden');
@@ -554,11 +716,70 @@ let menuOpen = false;
 function toggleRadialMenu() {
   menuOpen = !menuOpen;
   els.radialMenu.classList.toggle('hidden', !menuOpen);
+  if (menuOpen) radialRot = 0; // reset rotation on open
 }
 
 function closeRadialMenu() {
   menuOpen = false;
   els.radialMenu.classList.add('hidden');
+}
+
+/* ── Radial menu swipe-to-rotate ── */
+let radialRot = 0;
+let radialDragging = false;
+let radialStartAngle = 0;
+let radialStartRot = 0;
+
+function getRadialCenter() {
+  const rect = els.blobLauncher.getBoundingClientRect();
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+function applyRadialRot() {
+  els.radialMenu.style.setProperty('--rot', radialRot.toFixed(1) + 'deg');
+}
+
+if (els.radialMenu) {
+  const dragLayer = els.radialMenu.querySelector('.rm-drag');
+  const onDown = (e) => {
+    radialDragging = true;
+    const c = getRadialCenter();
+    const pt = e.touches ? e.touches[0] : e;
+    radialStartAngle = Math.atan2(pt.clientY - c.y, pt.clientX - c.x);
+    radialStartRot = radialRot;
+    els.radialMenu.style.transition = 'none';
+    e.preventDefault();
+  };
+  const onMove = (e) => {
+    if (!radialDragging) return;
+    const c = getRadialCenter();
+    const pt = e.touches ? e.touches[0] : e;
+    const angle = Math.atan2(pt.clientY - c.y, pt.clientX - c.x);
+    let delta = (angle - radialStartAngle) * 180 / Math.PI;
+    radialRot = radialStartRot + delta;
+    applyRadialRot();
+    e.preventDefault();
+  };
+  const onUp = () => {
+    if (!radialDragging) return;
+    radialDragging = false;
+    // Snap to nearest 45° for clean alignment
+    const snapped = Math.round(radialRot / 45) * 45;
+    radialRot = snapped;
+    els.radialMenu.style.transition = '--rot 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+    applyRadialRot();
+    setTimeout(() => { els.radialMenu.style.transition = ''; }, 350);
+  };
+
+  // Listen on drag layer (transparent, covers full screen)
+  if (dragLayer) {
+    dragLayer.addEventListener('pointerdown', onDown);
+    dragLayer.addEventListener('touchstart', onDown, { passive: false });
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend', onUp);
 }
 
 function openPanel(id) {
@@ -577,47 +798,300 @@ function closeAllPanels() {
   document.querySelectorAll('.feature-panel').forEach((p) => (p.hidden = true));
 }
 
-let dragStartY = null;
-let dragFired = false;
-const DRAG_THRESHOLD = 30;
+// Swipe-to-rotate + Drag-and-bounce physics
+// - Swipe (rotate in place) = blob spins, springs back
+// - Hold & drag (move far) = blob follows finger, release = billiard bounce
+// - Tap = poke
+let dragStartAngle = null;
+let currentRotation = 0;
+let dragStartX = 0, dragStartY = 0;
+let hasMoved = false;
+let blobOffsetX = 0, blobOffsetY = 0; // translate from center
+let lastMoveX = 0, lastMoveY = 0, lastMoveTime = 0;
+let velX = 0, velY = 0; // velocity for physics
+let physicsRAF = null;
+
+function stopPhysics() {
+  if (physicsRAF) { cancelAnimationFrame(physicsRAF); physicsRAF = null; }
+}
+
+function applyBlobTransform() {
+  els.svg.style.transform =
+    `translate(${blobOffsetX.toFixed(1)}px, ${blobOffsetY.toFixed(1)}px) rotate(${currentRotation.toFixed(1)}deg)`;
+}
+
+function startPhysics() {
+  stopPhysics();
+  const stageWrap = els.svg.closest('.stage-wrap') || document.querySelector('.stage-wrap');
+  if (!stageWrap) return;
+  const swRect = stageWrap.getBoundingClientRect();
+  const svgRect = els.svg.getBoundingClientRect();
+  const blobR = svgRect.width / 2;
+  const stageEl = document.getElementById('stage');
+  const stageRect = stageEl.getBoundingClientRect();
+  const centerX = stageRect.left + stageRect.width / 2;
+  const centerY = stageRect.top + stageRect.height / 2;
+  const maxX = (swRect.width / 2) - blobR * 0.6;
+  const maxY = (swRect.height / 2) - blobR * 0.6;
+  const BOUNCE = 0.72;
+  const FRICTION = 0.985;
+  const SPRING = 0.04;
+  const STOP_VEL = 8;
+  let bounceCount = 0;
+
+  let lastT = performance.now();
+  const tick = () => {
+    const now = performance.now();
+    const dt = Math.min((now - lastT) / 16.67, 2);
+    lastT = now;
+
+    blobOffsetX += velX * dt;
+    blobOffsetY += velY * dt;
+    currentRotation += velX * dt * 0.3;
+
+    // Bounce off walls — count bounces
+    if (blobOffsetX > maxX) { blobOffsetX = maxX; velX = -Math.abs(velX) * BOUNCE; playPop(); bounceCount++; }
+    if (blobOffsetX < -maxX) { blobOffsetX = -maxX; velX = Math.abs(velX) * BOUNCE; playPop(); bounceCount++; }
+    if (blobOffsetY > maxY) { blobOffsetY = maxY; velY = -Math.abs(velY) * BOUNCE; playPop(); bounceCount++; }
+    if (blobOffsetY < -maxY) { blobOffsetY = -maxY; velY = Math.abs(velY) * BOUNCE; playPop(); bounceCount++; }
+
+    velX *= Math.pow(FRICTION, dt);
+    velY *= Math.pow(FRICTION, dt);
+
+    const speed = Math.hypot(velX, velY);
+    if (speed < STOP_VEL) {
+      blobOffsetX *= Math.pow(1 - SPRING, dt);
+      blobOffsetY *= Math.pow(1 - SPRING, dt);
+      velX *= 0.9;
+      velY *= 0.9;
+    }
+
+    applyBlobTransform();
+
+    if (speed < 1 && Math.hypot(blobOffsetX, blobOffsetY) < 1) {
+      blobOffsetX = 0; blobOffsetY = 0;
+      currentRotation = Math.round(currentRotation / 360) * 360;
+      applyBlobTransform();
+      els.svg.style.transition = 'transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      const target = Math.round(currentRotation / 360) * 360;
+      els.svg.style.transform = `translate(0,0) rotate(${target}deg)`;
+      setTimeout(() => {
+        els.svg.style.transition = '';
+        currentRotation = target % 360;
+      }, 420);
+      stopPhysics();
+      // Dizzy effect if bounced at least 2 times
+      if (bounceCount >= 2) {
+        setTimeout(() => blob.playDizzy(2000), 100);
+      }
+      return;
+    }
+    physicsRAF = requestAnimationFrame(tick);
+  };
+  physicsRAF = requestAnimationFrame(tick);
+}
 
 els.svg.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  dragFired = false;
+  stopPhysics();
+  els.svg.style.transition = 'none';
+  hasMoved = false;
+  dragStartX = e.clientX;
   dragStartY = e.clientY;
+  lastMoveX = e.clientX;
+  lastMoveY = e.clientY;
+  lastMoveTime = performance.now();
+  velX = 0; velY = 0;
+  const rect = els.svg.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  dragStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
   els.svg.setPointerCapture(e.pointerId);
 });
 
 els.svg.addEventListener('pointermove', (e) => {
-  if (dragStartY === null) return;
+  if (dragStartAngle === null) return;
+  const rect = els.svg.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+
+  // Dial/knob rotation
+  const newAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
+  let delta = newAngle - dragStartAngle;
+  if (delta > Math.PI) delta -= 2 * Math.PI;
+  if (delta < -Math.PI) delta += 2 * Math.PI;
+  currentRotation += delta * 180 / Math.PI;
+  dragStartAngle = newAngle;
+
+  // Track translate: offset from original drag start
+  const dx = e.clientX - dragStartX;
   const dy = e.clientY - dragStartY;
-  if (dy > 8 && !dragFired) {
-    const pull = Math.min(dy / 120, 0.35);
-    els.svg.style.transform = `translateY(${pull * 40}px) scaleY(${1 - pull * 0.12})`;
+  blobOffsetX = dx;
+  blobOffsetY = dy;
+
+  // Track velocity
+  const now = performance.now();
+  const dtMs = now - lastMoveTime;
+  if (dtMs > 0) {
+    velX = (e.clientX - lastMoveX) / dtMs * 16.67;
+    velY = (e.clientY - lastMoveY) / dtMs * 16.67;
   }
-  if (dy >= DRAG_THRESHOLD && !dragFired) {
-    dragFired = true;
-    els.svg.style.transform = '';
-    if (!menuOpen) toggleRadialMenu();
-    blob.poke();
-    playPop();
-  }
+  lastMoveX = e.clientX;
+  lastMoveY = e.clientY;
+  lastMoveTime = now;
+
+  const dist = Math.hypot(dx, dy);
+  if (dist > 6) hasMoved = true;
+
+  applyBlobTransform();
 });
 
 els.svg.addEventListener('pointerup', (e) => {
   e.stopPropagation();
-  els.svg.style.transform = '';
-  if (!dragFired) {
+  if (!hasMoved) {
+    // Tap = poke
+    blobOffsetX = 0; blobOffsetY = 0;
+    applyBlobTransform();
     blob.poke();
     playPop();
+  } else {
+    const dragDist = Math.hypot(blobOffsetX, blobOffsetY);
+    if (dragDist > 20) {
+      // Slingshot: velocity = drag distance * direction * power multiplier
+      // Further drag = stronger launch
+      const POWER = 0.15; // multiplier for slingshot force
+      const angle = Math.atan2(blobOffsetY, blobOffsetX);
+      const launchSpeed = dragDist * POWER;
+      velX = Math.cos(angle) * launchSpeed;
+      velY = Math.sin(angle) * launchSpeed;
+      // Cap max velocity
+      const maxV = 60;
+      const vMag = Math.hypot(velX, velY);
+      if (vMag > maxV) { velX = velX / vMag * maxV; velY = velY / vMag * maxV; }
+      // Launch physics with bounce
+      startPhysics();
+    } else {
+      // Swipe-rotate mode: spring back rotation to nearest 360
+      blobOffsetX = 0; blobOffsetY = 0;
+      const target = Math.round(currentRotation / 360) * 360;
+      els.svg.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      els.svg.style.transform = `translate(0,0) rotate(${target}deg)`;
+      setTimeout(() => {
+        els.svg.style.transition = '';
+        currentRotation = target % 360;
+        if (currentRotation > 180) currentRotation -= 360;
+        if (currentRotation < -180) currentRotation += 360;
+      }, 520);
+    }
   }
-  dragStartY = null;
+  dragStartAngle = null;
 });
 
 els.svg.addEventListener('pointercancel', () => {
-  els.svg.style.transform = '';
-  dragStartY = null;
+  stopPhysics();
+  els.svg.style.transition = 'transform 0.3s ease';
+  els.svg.style.transform = 'rotate(0deg)';
+  setTimeout(() => { els.svg.style.transition = ''; }, 320);
+  currentRotation = 0;
+  blobOffsetX = 0; blobOffsetY = 0;
+  velX = 0; velY = 0;
+  dragStartAngle = null;
 });
+
+// Blob launcher icon — opens radial menu, long-press = voice, tap mic = stop
+const blobLauncher = $('#blobLauncher');
+const launcherBlob = blobLauncher ? blobLauncher.querySelector('.launcher-blob') : null;
+const launcherMic = blobLauncher ? blobLauncher.querySelector('.launcher-mic') : null;
+let voiceActive = false;
+
+function setLauncherMode(mode) {
+  if (!launcherBlob || !launcherMic) return;
+  if (mode === 'mic') {
+    launcherBlob.style.display = 'none';
+    launcherMic.style.display = 'block';
+    blobLauncher.classList.add('voice-active');
+    voiceActive = true;
+  } else {
+    launcherBlob.style.display = 'block';
+    launcherMic.style.display = 'none';
+    blobLauncher.classList.remove('voice-active');
+    voiceActive = false;
+  }
+}
+
+function stopVoice() {
+  if (recognition) {
+    try { recognition.stop(); } catch {}
+  }
+  els.btnMic.classList.remove('on');
+  if (blob.getState() === 'listen') blob.setState('idle');
+  blob.exitMicMode();
+  voiceActive = false;
+  showBubble('Oke! 👍', 1500);
+}
+
+if (blobLauncher) {
+  let pressTimer = null;
+  let longPressed = false;
+  let justActivated = false;
+
+  const startPress = () => {
+    // If already in voice mode, don't start long-press timer
+    if (voiceActive) return;
+    longPressed = false;
+    justActivated = false;
+    blobLauncher.classList.add('holding');
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      justActivated = true;
+      blobLauncher.classList.remove('holding');
+      // Morph the main blob into a mic (instead of swapping the launcher icon)
+      blob.enterMicMode();
+      voiceActive = true;
+      // Activate voice
+      if (recognition) {
+        try {
+          recognition.start();
+          els.btnMic.classList.add('on');
+          blob.setState('listen');
+          showBubble('Aku mendengarkan… 🎤');
+        } catch {}
+      } else {
+        showBubble('Voice tidak didukung di browser ini 😅');
+        setTimeout(() => { blob.exitMicMode(); voiceActive = false; }, 1500);
+      }
+      // justActivated is cleared in endPress, not by a timer —
+      // so the pointerup after long-press is always ignored no matter
+      // how long the user keeps holding past the 2s mark.
+    }, 2000);
+  };
+
+  const endPress = () => {
+    blobLauncher.classList.remove('holding');
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    // Ignore pointerup that comes right after long-press activation
+    if (justActivated) { justActivated = false; return; }
+    if (voiceActive) {
+      // Tap on mic icon = stop voice
+      stopVoice();
+      return;
+    }
+    if (!longPressed) {
+      // Short tap = open radial menu
+      toggleRadialMenu();
+    }
+  };
+
+  blobLauncher.addEventListener('pointerdown', (e) => { e.preventDefault(); startPress(); });
+  blobLauncher.addEventListener('pointerup', endPress);
+  blobLauncher.addEventListener('pointercancel', () => {
+    blobLauncher.classList.remove('holding');
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  });
+  blobLauncher.addEventListener('pointerleave', () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; blobLauncher.classList.remove('holding'); }
+  });
+}
 
 els.radialMenu.addEventListener('click', (e) => {
   const btn = e.target.closest('.rm-btn');
@@ -634,7 +1108,7 @@ els.radialMenu.addEventListener('click', (e) => {
       setTimeout(() => els.input.focus(), 100);
     }
   }
-  else if (f === 'pomodoro') openPanel('panelPomodoro');
+  else if (f === 'pomodoro') { closeRadialMenu(); startBlobTimer(); }
   else if (f === 'play') openPanel('panelPlay');
   else if (f === 'entertain') openPanel('panelEntertain');
   else if (f === 'powers') { closeRadialMenu(); els.powersRadial.classList.remove('hidden'); }
@@ -651,6 +1125,70 @@ els.chatClose.addEventListener('click', () => {
   els.chatSidebar.classList.add('hidden');
 });
 
+// Stage swipe-to-spin: swipe outside blob = 2.5D roll, faster swipe = faster spin
+let stageSwipeActive = false;
+let stageSwipeLastX = 0, stageSwipeLastY = 0;
+let stageSwipeLastTime = 0;
+let spinX = 0, spinY = 0; // 2.5D rotation angles
+
+function applyBlobTransform3D() {
+  els.svg.style.transform =
+    `translate(${blobOffsetX.toFixed(1)}px, ${blobOffsetY.toFixed(1)}px) ` +
+    `rotateY(${spinY.toFixed(1)}deg) rotateX(${(-spinX).toFixed(1)}deg) rotateZ(${currentRotation.toFixed(1)}deg)`;
+}
+
+els.stage.addEventListener('pointerdown', (e) => {
+  // Only trigger if pointer starts OUTSIDE the blob SVG
+  if (e.target === els.svg || els.svg.contains(e.target)) return;
+  stageSwipeActive = true;
+  stopPhysics();
+  els.svg.style.transition = 'none';
+  stageSwipeLastX = e.clientX;
+  stageSwipeLastY = e.clientY;
+  stageSwipeLastTime = performance.now();
+  els.stage.setPointerCapture(e.pointerId);
+});
+
+els.stage.addEventListener('pointermove', (e) => {
+  if (!stageSwipeActive) return;
+  const now = performance.now();
+  const dt = Math.max(now - stageSwipeLastTime, 1); // ms
+  const dx = e.clientX - stageSwipeLastX;
+  const dy = e.clientY - stageSwipeLastY;
+
+  // Velocity: pixels per ms
+  const speed = Math.hypot(dx, dy) / dt;
+  // Faster swipe = more rotation. dx drives rotateY, dy drives rotateX.
+  const power = 0.5 + speed * 1.2;
+  spinY += dx * power;   // horizontal swipe = roll left/right (rotateY)
+  spinX += dy * power;   // vertical swipe = roll up/down (rotateX)
+
+  stageSwipeLastX = e.clientX;
+  stageSwipeLastY = e.clientY;
+  stageSwipeLastTime = now;
+  applyBlobTransform3D();
+});
+
+els.stage.addEventListener('pointerup', () => {
+  if (!stageSwipeActive) return;
+  stageSwipeActive = false;
+  // Spring back to 0
+  els.svg.style.transition = 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  spinX = 0; spinY = 0;
+  currentRotation = Math.round(currentRotation / 360) * 360;
+  els.svg.style.transform = `translate(0,0) rotateY(0deg) rotateX(0deg) rotateZ(${currentRotation}deg)`;
+  setTimeout(() => {
+    els.svg.style.transition = '';
+    currentRotation = currentRotation % 360;
+    if (currentRotation > 180) currentRotation -= 360;
+    if (currentRotation < -180) currentRotation += 360;
+  }, 620);
+});
+
+els.stage.addEventListener('pointercancel', () => {
+  stageSwipeActive = false;
+});
+
 els.stage.addEventListener('click', (e) => {
   if (menuOpen && !e.target.closest('.rm-btn') && e.target !== els.svg) {
     closeRadialMenu();
@@ -662,6 +1200,14 @@ els.stage.addEventListener('click', (e) => {
   if (!els.powersRadial.classList.contains('hidden') && !fromMainRadial && !e.target.closest('.srm-btn') && !e.target.closest('.srm-back') && e.target !== els.svg) {
     els.powersRadial.classList.add('hidden');
   }
+});
+
+// Document-level listener: close sub-radials when clicking outside (they're position:fixed now)
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.srm-btn') || e.target.closest('.srm-back') || e.target.closest('.rm-btn') || e.target === els.svg || e.target.closest('#blobLauncher')) return;
+  if (!els.idleRadial.classList.contains('hidden')) els.idleRadial.classList.add('hidden');
+  if (!els.powersRadial.classList.contains('hidden')) els.powersRadial.classList.add('hidden');
+  if (menuOpen) closeRadialMenu();
 });
 
 els.form.addEventListener('submit', (e) => {
@@ -741,6 +1287,102 @@ els.pomoReset.addEventListener('click', () => {
   els.pomoReset.hidden = true;
 });
 
+/* ── Blob Timer Mode (blob morphs into clock) ── */
+let blobTimerRunning = false;
+let blobTimerInterval = null;
+let blobTimerLeft = 25 * 60;
+let blobTimerTotal = 25 * 60;
+let blobTimerSessions = 0;
+let blobTimerIsBreak = false;
+
+function blobTimerRender() {
+  const m = Math.floor(blobTimerLeft / 60);
+  const s = blobTimerLeft % 60;
+  const txt = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  // Update dot matrix on blob (the blob IS the timer display)
+  blob.updateTimerDisplay(txt);
+}
+
+function blobTimerTick() {
+  if (blobTimerLeft <= 0) {
+    clearInterval(blobTimerInterval);
+    blobTimerRunning = false;
+    if (!blobTimerIsBreak) {
+      blobTimerSessions++;
+      els.blobTimerCount.textContent = blobTimerSessions;
+      blobTimerIsBreak = true;
+      blobTimerLeft = blobTimerSessions % 4 === 0 ? 30 * 60 : 5 * 60;
+      blobTimerTotal = blobTimerLeft;
+      els.blobTimerLabel.textContent = 'Rehat ☕';
+      showBubble('Waktu rehat! ☕', 4000);
+    } else {
+      blobTimerIsBreak = false;
+      blobTimerLeft = 25 * 60;
+      blobTimerTotal = blobTimerLeft;
+      els.blobTimerLabel.textContent = 'Siap mulai';
+      showBubble('Rehat selesai! Siap lanjut?', 3000);
+    }
+    els.blobTimerStart.textContent = 'Mulai';
+    els.blobTimerReset.hidden = false;
+    blobTimerRender();
+    return;
+  }
+  blobTimerLeft--;
+  blobTimerRender();
+}
+
+function startBlobTimer() {
+  if (blob._timerMode) return; // already in timer mode
+  idleAnims.stop();
+  blob.enterTimerMode();
+  els.blobTimerOverlay.classList.remove('hidden');
+  // Reset state
+  blobTimerLeft = 25 * 60;
+  blobTimerTotal = 25 * 60;
+  blobTimerRunning = false;
+  blobTimerIsBreak = false;
+  els.blobTimerStart.textContent = 'Mulai';
+  els.blobTimerLabel.textContent = 'Siap mulai';
+  els.blobTimerReset.hidden = true;
+  blobTimerRender();
+}
+
+function closeBlobTimer() {
+  clearInterval(blobTimerInterval);
+  blobTimerRunning = false;
+  els.blobTimerOverlay.classList.add('hidden');
+  blob.exitTimerMode();
+  idleAnims.resume();
+}
+
+els.blobTimerStart.addEventListener('click', () => {
+  if (blobTimerRunning) {
+    clearInterval(blobTimerInterval);
+    blobTimerRunning = false;
+    els.blobTimerStart.textContent = 'Lanjut';
+    els.blobTimerLabel.textContent = 'Dijeda';
+  } else {
+    blobTimerRunning = true;
+    els.blobTimerStart.textContent = 'Jeda';
+    els.blobTimerLabel.textContent = blobTimerIsBreak ? 'Rehat... ☕' : 'Fokus! 💪';
+    blobTimerInterval = setInterval(blobTimerTick, 1000);
+  }
+});
+
+els.blobTimerReset.addEventListener('click', () => {
+  clearInterval(blobTimerInterval);
+  blobTimerRunning = false;
+  blobTimerIsBreak = false;
+  blobTimerLeft = 25 * 60;
+  blobTimerTotal = 25 * 60;
+  blobTimerRender();
+  els.blobTimerStart.textContent = 'Mulai';
+  els.blobTimerLabel.textContent = 'Siap mulai';
+  els.blobTimerReset.hidden = true;
+});
+
+els.blobTimerClose.addEventListener('click', closeBlobTimer);
+
 /* ── Play Panel ── */
 document.querySelectorAll('[data-poke]').forEach((btn) => {
   btn.addEventListener('click', () => { blob.poke(); playPop(); });
@@ -776,11 +1418,67 @@ $('#powersRadialBack').addEventListener('click', () => {
   els.powersRadial.classList.add('hidden');
 });
 
+/* ── Comet + Meteor Shower Effect ── */
+function spawnCometAndMeteors() {
+  const fx = document.getElementById('fxLayer');
+  if (!fx) return;
+
+  // Delay until blob reaches top-right (~35% of 2.8s = 980ms)
+  const SPAWN_DELAY = 980;
+
+  // Main comet: large, from top-right to bottom-left
+  setTimeout(() => {
+    const comet = document.createElement('div');
+    comet.className = 'main-comet';
+    fx.appendChild(comet);
+    setTimeout(() => comet.remove(), 1500);
+  }, SPAWN_DELAY);
+
+  // Trailing small comets following same direction (start after main comet)
+  const NUM_TRAIL = 4 + Math.floor(Math.random() * 3); // 4-6
+  for (let i = 0; i < NUM_TRAIL; i++) {
+    setTimeout(() => {
+      const t = document.createElement('div');
+      t.className = 'main-comet-trail';
+      const size = 4 + Math.random() * 6;
+      t.style.width = size + 'px';
+      t.style.height = size + 'px';
+      t.style.animationDuration = (1.0 + Math.random() * 0.4) + 's';
+      fx.appendChild(t);
+      setTimeout(() => t.remove(), 1500);
+    }, SPAWN_DELAY + 100 + i * 120);
+  }
+
+  // Meteor shower — small streaks, same direction, spread out (start after blob at top-right)
+  const NUM_METEORS = 12 + Math.floor(Math.random() * 8); // 12-19
+  for (let i = 0; i < NUM_METEORS; i++) {
+    setTimeout(() => {
+      const m = document.createElement('div');
+      m.className = 'meteor-shower';
+      const size = 3 + Math.random() * 5;
+      m.style.width = size + 'px';
+      m.style.height = size + 'px';
+      m.style.right = (Math.random() * 50) + 'vw';
+      m.style.top = (Math.random() * 40) + 'vh';
+      m.style.animationDuration = (0.9 + Math.random() * 0.6) + 's';
+      fx.appendChild(m);
+      setTimeout(() => m.remove(), 1600);
+    }, SPAWN_DELAY + 200 + i * 90 + Math.random() * 100);
+  }
+}
+
 document.querySelectorAll('#powersRadial .srm-btn[data-fx]').forEach((btn) => {
   btn.addEventListener('click', () => {
-    blob.triggerState(btn.dataset.fx);
+    const fx = btn.dataset.fx;
+    blob.triggerState(fx);
     const labels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!' };
-    showBubble(labels[btn.dataset.fx] || '⚡', 2200);
+    showBubble(labels[fx] || '⚡', 2200);
+
+    // Komet power: spawn comet + meteor shower
+    if (fx === 'comet') {
+      spawnCometAndMeteors();
+    }
+
     els.powersRadial.classList.add('hidden');
   });
 });
@@ -792,6 +1490,28 @@ $('#idleRadialBack').addEventListener('click', () => {
 
 const PEEK_DIRS = ['idle-peekaboo-top', 'idle-peekaboo-bottom', 'idle-peekaboo-left', 'idle-peekaboo-right'];
 
+const idleBadge = document.getElementById('idleBadge');
+const IDLE_LABELS = {
+  walk: 'Walk', run: 'Run', float: 'Float', bounce: 'Bounce', grow: 'Grow',
+  shrink: 'Shrink', spin: 'Spin', drift: 'Drift', tilt: 'Tilt', jump: 'Jump',
+  sneak: 'Sneak', wiggle: 'Wiggle', pulse: 'Pulse', wobble: 'Wobble', nod: 'Nod',
+  flip: 'Flip', 'slide-l': 'Slide L', 'slide-r': 'Slide R', melt: 'Melt',
+  peekaboo: 'Peek', knock: 'Knock',
+};
+function showIdleBadge(idleType) {
+  if (!idleBadge) return;
+  const label = IDLE_LABELS[idleType] || idleType;
+  idleBadge.textContent = label;
+  idleBadge.classList.remove('hidden');
+  // restart animation
+  idleBadge.style.animation = 'none';
+  void idleBadge.offsetWidth;
+  idleBadge.style.animation = '';
+}
+function hideIdleBadge() {
+  if (idleBadge) idleBadge.classList.add('hidden');
+}
+
 document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
   btn.addEventListener('click', () => {
     idleAnims.stop();
@@ -800,21 +1520,49 @@ document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
 
     if (idleType === 'melt') {
       svg.classList.remove('idle-anim');
-      showBubble('▶ Leleh... 💧', 2000);
+      showBubble('Leleh... 💧', 2000);
+      showIdleBadge('melt');
       blob.playMelt();
-      setTimeout(() => { idleAnims.resume(); }, 10000);
+      setTimeout(() => { hideIdleBadge(); idleAnims.resume(); }, 10000);
+      return;
+    }
+
+    if (idleType === 'knock') {
+      svg.classList.remove('idle-anim');
+      showBubble('Tok tok! 🚪', 3000);
+      showIdleBadge('knock');
+      svg.classList.add('idle-anim', 'idle-knock');
+      const stage = els.stage;
+      const knockTimes = [1680, 2200, 2720];
+      knockTimes.forEach((t) => {
+        setTimeout(() => {
+          playKnock();
+          stage.classList.add('knocking');
+          const flash = document.createElement('div');
+          flash.className = 'knock-flash';
+          document.body.appendChild(flash);
+          setTimeout(() => flash.remove(), 250);
+          setTimeout(() => stage.classList.remove('knocking'), 200);
+        }, t);
+      });
+      svg.addEventListener('animationend', () => {
+        svg.classList.remove('idle-anim', 'idle-knock');
+        hideIdleBadge();
+        idleAnims.resume();
+      }, { once: true });
       return;
     }
 
     const cls = 'idle-' + idleType;
     const addClasses = [cls];
     if (cls === 'idle-peekaboo') addClasses.push(PEEK_DIRS[Math.floor(Math.random() * PEEK_DIRS.length)]);
-    svg.classList.remove('idle-anim', ...PEEK_DIRS, 'idle-walk', 'idle-run', 'idle-float', 'idle-bounce', 'idle-grow', 'idle-shrink', 'idle-spin', 'idle-drift', 'idle-tilt', 'idle-jump', 'idle-sneak', 'idle-wiggle', 'idle-pulse', 'idle-wobble', 'idle-nod', 'idle-flip', 'idle-slide-l', 'idle-slide-r', 'idle-melt', 'idle-peekaboo');
+    svg.classList.remove('idle-anim', ...PEEK_DIRS, 'idle-walk', 'idle-run', 'idle-float', 'idle-bounce', 'idle-grow', 'idle-shrink', 'idle-spin', 'idle-drift', 'idle-tilt', 'idle-jump', 'idle-sneak', 'idle-wiggle', 'idle-pulse', 'idle-wobble', 'idle-nod', 'idle-flip', 'idle-slide-l', 'idle-slide-r', 'idle-melt', 'idle-peekaboo', 'idle-knock');
     svg.classList.add('idle-anim', ...addClasses);
-    showBubble('▶ ' + btn.textContent.trim(), 2000);
+    showIdleBadge(idleType);
     svg.addEventListener('animationend', () => {
       const computed = getComputedStyle(svg).transform;
       svg.classList.remove('idle-anim', ...addClasses);
+      hideIdleBadge();
       if (computed && computed !== 'none') {
         svg.style.transform = computed;
         svg.style.transition = 'transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
