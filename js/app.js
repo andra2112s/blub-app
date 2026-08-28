@@ -56,17 +56,18 @@ const els = {
   blobTimerCount: $('#blobTimerCount')
 };
 
-/* ── Ground shadow: sync with blob transform (inline + CSS animations) ── */
+/* ── Ground shadow: proper shadow physics ── */
+/* On ground: shadow = blob width. Higher up: shadow grows + fades. Shrink: shadow shrinks. */
 if (els.ground && els.svg) {
-  const BASE_OFFSET = 115;  // px below center (gap + flatten)
-  const FLATTEN = 0.55;     // scaleY multiplier for "penyet" look
+  const BASE_OFFSET = 115;  // px below center (ground position)
+  const FLATTEN = 0.4;      // scaleY for flat-on-ground look
+  const HEIGHT_GROW = 0.6;  // how much shadow grows per px of height
+  const MAX_GROW = 1.8;     // max shadow enlargement when very high
 
   const updateGround = () => {
-    // getComputedStyle captures both inline style AND CSS @keyframes animations
     const matrix = getComputedStyle(els.svg).transform;
-    let tx = 0, ty = 0, sx = 1, sy = 1, rot = 0;
+    let tx = 0, ty = 0, sx = 1, sy = 1;
     if (matrix && matrix !== 'none') {
-      // matrix(a, b, c, d, e, f) — e=tx, f=ty, a=sx*cos, d=sy*cos
       const m = matrix.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
       if (m) {
         const a = parseFloat(m[1]);
@@ -76,17 +77,23 @@ if (els.ground && els.svg) {
         ty = parseFloat(m[6]);
         sx = Math.sqrt(a * a + b * b);
         sy = Math.sqrt(d * d + parseFloat(m[3]) * parseFloat(m[3]));
-        rot = Math.atan2(b, a) * 180 / Math.PI;
       }
     }
-    // Shadow follows horizontal movement, shrinks when blob goes up, stays flat
-    const shadowScaleX = Math.max(0.3, sx);
-    const shadowScaleY = Math.max(0.15, sy * FLATTEN);
-    const heightFactor = 1 - Math.min(Math.abs(ty) / 250, 0.65);
-    const shadowOpacity = Math.max(0.1, Math.min(1, sy) * heightFactor);
+    // Height above ground (ty < 0 = blob went up)
+    const height = Math.max(0, -ty); // positive = how high blob is
+    // Shadow physics: higher = wider + more diffuse (faded)
+    const growFactor = 1 + Math.min(height / 200, MAX_GROW - 1) * HEIGHT_GROW;
+    const shadowScaleX = Math.max(0.2, sx * growFactor);
+    const shadowScaleY = Math.max(0.1, sy * FLATTEN * growFactor);
+    // Opacity: full on ground, fades as blob rises
+    const heightFade = 1 - Math.min(height / 300, 0.7);
+    const shadowOpacity = Math.max(0.08, Math.min(1, sy) * heightFade);
+    // Blur: more blur when higher (diffuse shadow)
+    const blurAmount = 10 + Math.min(height / 30, 15);
     els.ground.style.transform =
-      `translate(calc(-50% + ${tx.toFixed(1)}px), calc(-50% + ${BASE_OFFSET + Math.max(ty, 0) * 0.2}px)) scaleX(${shadowScaleX.toFixed(2)}) scaleY(${shadowScaleY.toFixed(2)})`;
+      `translate(calc(-50% + ${tx.toFixed(1)}px), calc(-50% + ${BASE_OFFSET + Math.max(ty, 0) * 0.15}px)) scaleX(${shadowScaleX.toFixed(2)}) scaleY(${shadowScaleY.toFixed(2)})`;
     els.ground.style.opacity = shadowOpacity.toFixed(2);
+    els.ground.style.filter = `blur(${blurAmount.toFixed(1)}px)`;
     requestAnimationFrame(updateGround);
   };
   requestAnimationFrame(updateGround);

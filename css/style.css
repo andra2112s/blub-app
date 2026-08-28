@@ -575,16 +575,16 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(50vw, 220px);
-  height: min(7vw, 30px);
+  width: min(72vw, 340px);
+  height: min(10vw, 46px);
   border-radius: 50%;
   background: rgba(10, 10, 14, 0.28);
-  filter: blur(8px);
+  filter: blur(10px);
   transform: translate(-50%, calc(-50% + 115px)) scaleX(1) scaleY(1);
-  transition: transform 0.12s ease-out, opacity 0.2s ease;
+  transition: opacity 0.2s ease;
   pointer-events: none;
   z-index: 1;
-  will-change: transform;
+  will-change: transform, filter;
 }
 [data-theme="light"] .blob-ground {
   background: rgba(40, 38, 50, 0.22);
@@ -1203,8 +1203,10 @@ body {
     min-width: 0;
   }
   #blobSvg { width: min(36vw, 400px); }
+  .blob-ground { width: min(36vw, 400px); height: min(5vw, 54px); }
   /* Timer mode: enlarge blob on desktop so dot-matrix timer is bigger */
   .stage.timer-mode #blobSvg { width: min(60vw, 600px); }
+  .stage.timer-mode .blob-ground { width: min(60vw, 600px); }
   .chat-sidebar {
     flex: 0 0 380px;
     width: 380px;
