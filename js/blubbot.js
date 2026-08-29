@@ -47,13 +47,20 @@ const OLD_SHAPE_MAP = {
 };
 
 const MOOD = {
-  idle:   { state: 'idle', expr: null },
-  happy:  { state: 'idle', expr: 'heureux' },
-  excite: { state: 'play', expr: 'hilare' },
-  think:  { state: 'thinking', expr: 'curieux' },
-  listen: { state: 'idle', expr: 'attentif' },
-  sad:    { state: 'idle', expr: 'triste' },
-  sleepy: { state: 'sleep', expr: 'somnolent' }
+  idle:    { state: 'idle',      expr: null },
+  happy:   { state: 'idle',      expr: 'heureux' },
+  excite:  { state: 'play',      expr: 'hilare' },
+  think:   { state: 'thinking',  expr: 'curieux' },
+  listen:  { state: 'idle',      expr: 'attentif' },
+  sad:     { state: 'idle',      expr: 'triste' },
+  sleepy:  { state: 'sleep',     expr: 'somnolent' },
+  surpris: { state: 'alert',     expr: 'surpris' },
+  scare:   { state: 'wide',      expr: 'effraye' },
+  doubt:   { state: 'idle',      expr: 'mefiant' },
+  confuse: { state: 'idle',      expr: 'confus' },
+  proud:   { state: 'idle',      expr: 'fier' },
+  shy:     { state: 'idle',      expr: 'timide' },
+  bored:   { state: 'idle',      expr: 'blase' }
 };
 
 /* ── Mouth shapes per expression ── */
@@ -580,8 +587,9 @@ export class BlobCharacter {
 
   static computeDotPositions(timeStr) {
     // 5x7 font — width 5 for digits, 2 for colon
-    const SP = 11;    // dot spacing
-    const GAP = 6;    // gap between characters
+    // SP tuned so "25:00" (widest) fits within viewBox 316px
+    const SP = 12;   // dot spacing
+    const GAP = 6;   // gap between characters
     const ROWS = 7;
     // Compute total width
     let totalW = 0;
@@ -610,7 +618,7 @@ export class BlobCharacter {
   }
 
   static getTimerDotRadius() {
-    return 4;
+    return 5;
   }
 
   enterTimerMode() {
@@ -670,10 +678,9 @@ export class BlobCharacter {
     if (stage) stage.classList.add('timer-mode');
 
     // Animation: body shrinks/fades while dots fly to target positions (staggered)
-    // Body shrinks 1 → 0.6 in first 40%, then eases back to 1 in last 30%
-    const DUR = 1200;
-    const SHRINK_END = 0.4;
-    const GROW_START = 0.7;
+    // Smooth power-style morph: quick squish → hold → dots fly out
+    const DUR = 900;
+    const SHRINK_END = 0.35;
     const t0 = performance.now();
 
     const animate = () => {
@@ -681,23 +688,23 @@ export class BlobCharacter {
       const elapsed = now - t0;
       const p = Math.min(elapsed / DUR, 1);
 
-      // Body scale: shrink then grow back smoothly
+      // Body scale: smooth squish using easeInOut (like power effects)
       let scale;
       if (p < SHRINK_END) {
         const lp = p / SHRINK_END;
-        scale = 1 - BlobCharacter._easeIn(lp) * 0.4;
-      } else if (p < GROW_START) {
-        scale = 0.6; // hold small
+        scale = 1 - BlobCharacter._easeInOut(lp) * 0.45;
       } else {
-        const lp = (p - GROW_START) / (1 - GROW_START);
-        scale = 0.6 + BlobCharacter._easeOut(lp) * 0.4;
+        const lp = (p - SHRINK_END) / (1 - SHRINK_END);
+        scale = 0.55 + BlobCharacter._easeOut(lp) * 0.45;
       }
 
-      // Body opacity: fade out in first 50%
-      const bodyOpacity = Math.max(0, 1 - BlobCharacter._easeIn(Math.min(p / 0.5, 1)));
+      // Body opacity: smooth fade out with easeInOut
+      const bodyOpacity = Math.max(0, 1 - BlobCharacter._easeInOut(Math.min(p / 0.55, 1)));
       bodyEl.setAttribute('opacity', bodyOpacity.toFixed(3));
       svg.style.transform = `scale(${scale.toFixed(4)})`;
-      svg.style.filter = `brightness(${(1 + (1 - p) * 0.4).toFixed(3)}) drop-shadow(0 0 ${((1-p) * 10).toFixed(1)}px rgba(124,92,255,${((1-p)*0.4).toFixed(3)}))`;
+      // Power-style glow that fades as morph completes
+      const glow = (1 - p) * 0.6;
+      svg.style.filter = `brightness(${(1 + glow * 0.7).toFixed(3)}) drop-shadow(0 0 ${(glow * 20).toFixed(1)}px rgba(124,92,255,${glow.toFixed(3)}))`;
 
       // Dots: each dot has its own staggered start time
       for (const d of self._timerDots) {
@@ -794,9 +801,9 @@ export class BlobCharacter {
 
     // Dots scatter back toward center + fade out (CSS transition handles it)
     for (const d of self._timerDots) {
-      const sx = (Math.random() - 0.5) * 50;
-      const sy = (Math.random() - 0.5) * 50;
-      d.el.style.transition = 'transform 0.6s cubic-bezier(0.4, 0, 0.6, 1), opacity 0.6s ease';
+      const sx = (Math.random() - 0.5) * 40;
+      const sy = (Math.random() - 0.5) * 40;
+      d.el.style.transition = 'transform 0.7s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.7s ease';
       d.el.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
       d.el.style.opacity = '0';
     }
@@ -807,9 +814,9 @@ export class BlobCharacter {
 
     svg.style.willChange = 'transform, filter';
 
-    // Body grows back + fades in (starts after dots begin scattering)
-    const DUR = 600;
-    const DELAY = 200;
+    // Body grows back + fades in with power-style bounce
+    const DUR = 700;
+    const DELAY = 150;
     const t0 = performance.now() + DELAY;
 
     const animate = () => {
@@ -818,10 +825,13 @@ export class BlobCharacter {
       const p = Math.min((now - t0) / DUR, 1);
       const ease = BlobCharacter._easeOut(p);
 
+      // Bounce-back scale: start small, overshoot slightly, settle
       const scale = 0.5 + ease * 0.5;
       svg.style.transform = `scale(${scale.toFixed(4)})`;
       bodyEl.setAttribute('opacity', ease.toFixed(3));
-      svg.style.filter = `brightness(${(1 + (1-p) * 0.3).toFixed(3)}) drop-shadow(0 0 ${((1-p) * 8).toFixed(1)}px rgba(124,92,255,${((1-p)*0.3).toFixed(3)}))`;
+      // Gentle glow fades out as blob reforms
+      const glow = (1 - p) * 0.4;
+      svg.style.filter = `brightness(${(1 + glow * 0.5).toFixed(3)}) drop-shadow(0 0 ${(glow * 15).toFixed(1)}px rgba(124,92,255,${glow.toFixed(3)}))`;
 
       // Face fades in
       const faceA = Math.min(p * 1.5, 1).toFixed(3);
@@ -850,6 +860,68 @@ export class BlobCharacter {
       }
     };
     requestAnimationFrame(animate);
+  }
+
+  /* ── Meditation mode: blob closes eyes, breathes slowly, soft glow ── */
+  enterMeditation() {
+    if (this._meditating) return;
+    this._meditating = true;
+    const svg = this.svg;
+    const eyeEls = this.eyeEls;
+    const mouthEl = this.mouthEl;
+    const self = this;
+
+    // Save current state
+    this._medSavedState = this.engine.getState ? this.engine.getState() : 'idle';
+
+    // Set sleepy state (eyes closed, calm)
+    this.engine.setState('sleep', nowSec());
+    this.engine.setExpression(EXPR_BY_ID.somnolent, nowSec());
+
+    // Soft calm glow + slow breathing scale
+    svg.style.transition = 'filter 1.5s ease-in-out';
+    svg.style.filter = 'drop-shadow(0 0 20px rgba(124,92,255,0.3)) brightness(0.95)';
+
+    // Breathing animation
+    const t0 = performance.now();
+    const breathe = () => {
+      if (!self._meditating) return;
+      const t = (performance.now() - t0) / 1000;
+      // Slow breathing: 4s inhale, 4s exhale
+      const breath = 1 + Math.sin(t * Math.PI / 4) * 0.04;
+      svg.style.transform = `scale(${breath.toFixed(4)})`;
+      requestAnimationFrame(breathe);
+    };
+    requestAnimationFrame(breathe);
+
+    // Gentle smile
+    if (mouthEl) {
+      setTimeout(() => {
+        if (!self._meditating) return;
+        mouthEl.setAttribute('d', 'M -12 15 Q 0 22 12 15');
+        mouthEl.setAttribute('stroke', self.eyeColorCache);
+        mouthEl.setAttribute('opacity', '0.7');
+      }, 800);
+    }
+  }
+
+  exitMeditation() {
+    if (!this._meditating) return;
+    this._meditating = false;
+    const svg = this.svg;
+
+    // Fade out glow
+    svg.style.transition = 'filter 0.8s ease, transform 0.8s ease';
+    svg.style.filter = '';
+    svg.style.transform = '';
+
+    // Restore idle state
+    this.engine.setState('idle', nowSec());
+    this.engine.setExpression(EXPR_BY_ID.neutre, nowSec());
+
+    setTimeout(() => {
+      svg.style.transition = '';
+    }, 850);
   }
 
   triggerState(fx) {
@@ -882,18 +954,34 @@ export class BlobCharacter {
       this.fxTimer = setTimeout(() => {
         if (this.mood === 'idle') this.engine.setState('idle', nowSec());
         if (stage) { stage.classList.remove('power'); stage.classList.remove('comet-fly'); }
-        this.svg.style.filter = '';
-        this.svg.style.transform = '';
+        this.svg.style.transition = 'filter 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        this.svg.style.filter = 'drop-shadow(0 0 6px rgba(124,92,255,0.15))';
+        this.svg.style.transform = 'translate(0px, 0px) rotate(0deg) scale(1)';
+        this._fxCleanupTimer = setTimeout(() => {
+          this.svg.style.transition = '';
+          this.svg.style.filter = '';
+          this.svg.style.transform = '';
+          this._fxCleanupTimer = null;
+        }, 550);
       }, 3000);
     } else {
-      this.svg.style.transition = 'filter 0.2s, transform 0.2s';
+      this.svg.style.transition = 'filter 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
       this.svg.style.filter = 'drop-shadow(0 0 25px rgba(124,92,255,0.8)) brightness(1.4)';
       this.svg.style.transform = 'scale(1.15)';
       this.fxTimer = setTimeout(() => {
         if (this.mood === 'idle') this.engine.setState('idle', nowSec());
         if (stage) stage.classList.remove('power');
-        this.svg.style.filter = '';
-        this.svg.style.transform = '';
+        // Smooth transition back — set explicit target values, not empty strings
+        this.svg.style.transition = 'filter 0.5s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        this.svg.style.filter = 'drop-shadow(0 0 6px rgba(124,92,255,0.15))';
+        this.svg.style.transform = 'translate(0px, 0px) rotate(0deg) scale(1)';
+        // Clear inline styles after transition completes so HTML defaults take over
+        this._fxCleanupTimer = setTimeout(() => {
+          this.svg.style.transition = '';
+          this.svg.style.filter = '';
+          this.svg.style.transform = '';
+          this._fxCleanupTimer = null;
+        }, 550);
       }, FX_HOLD[fx] || 2600);
     }
   }
@@ -1533,7 +1621,7 @@ const IDLE_BUBBLES = [
 ];
 
 export function startIdleAnimations(svg, opts = {}) {
-  const { onBubble, onPoke } = opts;
+  const { onBubble, onPoke, onIdleStart, onIdleEnd } = opts;
   let running = true;
   let currentClass = null;
   let userActive = false;
@@ -1585,6 +1673,7 @@ export function startIdleAnimations(svg, opts = {}) {
       svg.classList.add('idle-anim', cls);
     }
     currentClass = cls;
+    if (onIdleStart) onIdleStart(cls.replace('idle-', ''));
 
     if (onBubble && (cls === 'idle-peekaboo' || Math.random() < 0.35)) {
       const q = cls === 'idle-peekaboo' ? 'Ciluk.. baa!' : IDLE_BUBBLES[Math.floor(Math.random() * IDLE_BUBBLES.length)];
@@ -1597,6 +1686,7 @@ export function startIdleAnimations(svg, opts = {}) {
       svg.classList.remove('idle-anim', cls);
       if (peekDir) svg.classList.remove(peekDir);
       currentClass = null;
+      if (onIdleEnd) onIdleEnd();
       if (computed && computed !== 'none') {
         svg.style.transform = computed;
         svg.style.transition = 'transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)';

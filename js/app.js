@@ -36,6 +36,9 @@ const els = {
   setKey: $('#setKey'),
   setModel: $('#setModel'),
   setSys: $('#setSys'),
+  setTtsKey: $('#setTtsKey'),
+  setTtsVoice: $('#setTtsVoice'),
+  setTtsEnabled: $('#setTtsEnabled'),
   setSave: $('#setSave'),
   setReset: $('#setReset'),
   obDlg: $('#obDlg'),
@@ -221,10 +224,94 @@ function pickVoice() {
     null;
 }
 
+/* ── MiMo TTS (Xiaomi) — natural AI voice via OpenAI-compatible API ── */
+const MIMO_TTS_URL = 'https://api.xiaomimimo.com/v1/chat/completions';
+let mimoAudioEl = null;
+let mimoLoading = false;
+
+function getTtsConfig() {
+  try {
+    const cfg = JSON.parse(store.get('blub.settings', '{}'));
+    return {
+      enabled: !!cfg.ttsEnabled,
+      key: cfg.ttsKey || '',
+      voice: cfg.ttsVoice || 'Chloe'
+    };
+  } catch { return { enabled: false, key: '', voice: 'Chloe' }; }
+}
+
+async function speakMiMo(text) {
+  if (mimoLoading) return;
+  const cfg = getTtsConfig();
+  if (!cfg.key) return false;
+  const cleanText = text.replace(/[*_#`>]/g, '').replace(/\$\{PERSONA\}/g, PERSONA).slice(0, 500);
+  if (!cleanText) return false;
+
+  mimoLoading = true;
+  blob.talk(true);
+  try {
+    const res = await fetch(MIMO_TTS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': cfg.key
+      },
+      body: JSON.stringify({
+        model: 'mimo-v2.5-tts',
+        messages: [
+          {
+            role: 'user',
+            content: 'Warm, friendly, slightly playful tone — like chatting with a close friend. Gentle pace, natural pauses, soft and inviting voice.'
+          },
+          { role: 'assistant', content: cleanText }
+        ],
+        audio: { format: 'wav', voice: cfg.voice },
+        modalities: ['audio', 'text']
+      })
+    });
+    if (!res.ok) throw new Error('mimo-' + res.status);
+    const data = await res.json();
+    const audioB64 = data.choices?.[0]?.message?.audio?.data;
+    if (!audioB64) throw new Error('no-audio');
+
+    // Stop browser TTS if running
+    if ('speechSynthesis' in window) speechSynthesis.cancel();
+
+    // Play audio
+    if (mimoAudioEl) { mimoAudioEl.pause(); mimoAudioEl = null; }
+    mimoAudioEl = new Audio('data:audio/wav;base64,' + audioB64);
+    mimoAudioEl.onended = () => { blob.talk(false); mimoAudioEl = null; };
+    mimoAudioEl.onerror = () => { blob.talk(false); mimoAudioEl = null; };
+    await mimoAudioEl.play();
+    return true;
+  } catch (err) {
+    console.warn('[mimo-tts] fallback to browser TTS:', err.message);
+    blob.talk(false);
+    return false;
+  } finally {
+    mimoLoading = false;
+  }
+}
+
+function stopMiMo() {
+  if (mimoAudioEl) { mimoAudioEl.pause(); mimoAudioEl = null; blob.talk(false); }
+}
+
 function speak(text) {
-  if (muted || !('speechSynthesis' in window)) return;
+  if (muted) return;
+  const cfg = getTtsConfig();
+  const cleanText = text.replace(/[*_#`>]/g, '').slice(0, 300);
+
+  // Try MiMo TTS first if enabled
+  if (cfg.enabled && cfg.key) {
+    speakMiMo(text);
+    return;
+  }
+
+  // Fallback: browser SpeechSynthesis
+  if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text.replace(/[*_#`>]/g, '').slice(0, 300));
+  const u = new SpeechSynthesisUtterance(cleanText);
   u.lang = 'id-ID';
   if (!ttsVoice) pickVoice();
   if (ttsVoice) u.voice = ttsVoice;
@@ -267,7 +354,15 @@ function showTyping(on) {
   }
 }
 
-const stateHold = { sad: 5000, excite: 1600, sleepy: 6000, happy: 2600 };
+const stateHold = { sad: 5000, excite: 1600, sleepy: 6000, happy: 2600, surpris: 2000, scare: 2500, doubt: 3000, confuse: 3000, proud: 3000, shy: 2500, bored: 4000 };
+
+function detectSentiment(state) {
+  const positive = ['happy', 'excite', 'proud', 'surpris', 'shy'];
+  const negative = ['sad', 'scare', 'doubt', 'bored', 'confuse'];
+  if (positive.includes(state)) return 'positive';
+  if (negative.includes(state)) return 'negative';
+  return 'neutral';
+}
 function applyState(state) {
   if (!state || !stateHold && state !== 'think' && state !== 'listen') return;
   if (state === 'talk') return;
@@ -292,6 +387,7 @@ async function send(rawText) {
   addMsg('user', text);
   showTyping(true);
   blob.setState('think');
+  emotion.markInteraction('chat');
 
   let res;
   try {
@@ -304,10 +400,16 @@ async function send(rawText) {
   addMsg('bot', res.text);
   speak(res.text);
   if (res.colorId) blob.setColorById(res.colorId);
+
+  // Detect chat sentiment for emotion engine
+  const sentiment = detectSentiment(res.state);
+  emotion.setChatSentiment(sentiment);
+
   if (res.effect) {
     const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!' };
     showBubble(fxLabels[res.effect] || '⚡ Power!', 2200);
     console.info('[blub] triggerState', res.effect);
+    emotion.markInteraction('power');
     if (res.effect === 'peekaboo') {
       blob.triggerPeekaboo();
     } else {
@@ -337,47 +439,207 @@ const idlePhrases = [
   'Eh, tahu nggak kalau aku bisa inget nama kamu?'
 ];
 
+const sadPhrases = [
+  'Kamu lagi sibuk ya? 🥺',
+  'Aku nungguin kamu di sini…',
+  'Sepi banget… kamunya kemana nih?',
+  'Jangan lama-lama ya, ${PERSONA} kangen...',
+  'Halo? Kamu masih ada? 💔'
+];
+
+const cryPhrases = [
+  'Aduh… kamu lama banget pergi… 😭',
+  'Aku nangis nih… kangen kamu...',
+  'Jangan tinggal ${PERSONA} sendirian dong… 💧',
+  'Aku mikir kamu udah nggak balik lagi… 😢'
+];
+
 function scheduleIdle() {
   setTimeout(() => {
-    if (!busy && blob.getState() === 'idle') {
-      showBubble(idlePhrases[Math.floor(Math.random() * idlePhrases.length)]);
+    if (!busy && blob.getState() === 'idle' && !emotion.isAway()) {
+      const phrases = emotion.getPhase() === 'sad' ? sadPhrases
+        : emotion.getPhase() === 'cry' ? cryPhrases
+        : idlePhrases;
+      showBubble(phrases[Math.floor(Math.random() * phrases.length)]);
     }
     scheduleIdle();
   }, 9000 + Math.random() * 15000);
 }
 
-/* ── Auto-sleep: blob falls asleep after 30s of no interaction ── */
-let sleepTimer = null;
-let isSleeping = false;
-const SLEEP_DELAY = 30000; // 30 seconds
+/* ── Emotion Engine: blob evolves based on interaction patterns ── */
+const emotion = (function() {
+  let lastInteraction = Date.now();
+  let sessionStart = Date.now();
+  let pokeCount = 0;
+  let chatCount = 0;
+  let powerCount = 0;
+  let lastChatSentiment = 'neutral'; // 'positive' | 'negative' | 'neutral'
+  let sentimentDecayTimer = null;
+  let currentPhase = 'idle'; // idle | sleepy | sad | cry
+  let emotionTimer = null;
+  let awayNotified = false;
 
-function resetSleepTimer() {
-  if (sleepTimer) clearTimeout(sleepTimer);
-  if (isSleeping) wakeUp();
-  sleepTimer = setTimeout(() => {
-    if (!busy && blob.getState() === 'idle') fallAsleep();
-  }, SLEEP_DELAY);
-}
+  const PHASES = {
+    idle:   { delay: 30000,  next: 'sleepy', mood: 'idle'   },
+    sleepy: { delay: 45000,  next: 'sad',    mood: 'sleepy' },
+    sad:    { delay: 60000,  next: 'cry',    mood: 'sad'    },
+    cry:    { delay: 0,      next: null,     mood: 'sad'    }
+  };
 
-function fallAsleep() {
-  isSleeping = true;
-  blob.setState('sleepy');
-  const snore = document.getElementById('snore');
-  if (snore) snore.classList.remove('hidden');
-  showBubble('Zzz… 😴', 3000);
-}
+  function getPhase() { return currentPhase; }
+  function isAway() { return currentPhase === 'sad' || currentPhase === 'cry'; }
 
-function wakeUp() {
-  isSleeping = false;
-  const snore = document.getElementById('snore');
-  if (snore) snore.classList.add('hidden');
-  if (blob.getState() === 'sleepy') blob.setState('idle');
-}
+  function markInteraction(type) {
+    const wasAway = isAway();
+    lastInteraction = Date.now();
+    awayNotified = false;
 
-// Reset sleep timer on any user interaction
-['pointerdown', 'pointermove', 'keydown', 'click'].forEach(ev => {
-  document.addEventListener(ev, resetSleepTimer, { passive: true });
-});
+    if (type === 'poke') pokeCount++;
+    if (type === 'chat') chatCount++;
+    if (type === 'power') powerCount++;
+
+    // If returning from sad/cry, show happy reunion
+    if (wasAway) {
+      const awayDuration = Date.now() - (lastInteraction - (Date.now() - lastInteraction));
+      const reunionMood = currentPhase === 'cry' ? 'excite' : 'happy';
+      currentPhase = 'idle';
+      if (reunionMood === 'excite') {
+        blob.setState('excite', { holdMs: 2500 });
+        showBubble('Kamu balik!! ${PERSONA} kangen banget! 🥹💕', 3500);
+      } else {
+        blob.setState('happy', { holdMs: 2000 });
+        showBubble('Yay, kamu balik! 😊', 2500);
+      }
+    } else if (currentPhase === 'sleepy') {
+      currentPhase = 'idle';
+      const snore = document.getElementById('snore');
+      if (snore) snore.classList.add('hidden');
+      if (blob.getState() === 'sleepy') blob.setState('idle');
+    }
+
+    scheduleEmotion();
+  }
+
+  function setChatSentiment(s) {
+    lastChatSentiment = s;
+    if (sentimentDecayTimer) clearTimeout(sentimentDecayTimer);
+    // Sentiment affects blob mood for a while
+    if (s === 'positive') {
+      blob.setState('happy', { holdMs: 3000 });
+    } else if (s === 'negative') {
+      blob.setState('sad', { holdMs: 4000 });
+    }
+    // Decay back to neutral after 30s
+    sentimentDecayTimer = setTimeout(() => { lastChatSentiment = 'neutral'; }, 30000);
+  }
+
+  function scheduleEmotion() {
+    if (emotionTimer) clearTimeout(emotionTimer);
+    const phase = PHASES[currentPhase];
+    if (!phase || !phase.next) return;
+
+    emotionTimer = setTimeout(() => {
+      if (busy) { scheduleEmotion(); return; }
+      const state = blob.getState();
+      // Don't transition if blob is in timer/meditation/mic mode
+      if (state === 'sleep' && currentPhase !== 'sleepy') { scheduleEmotion(); return; }
+
+      currentPhase = phase.next;
+      applyPhase(currentPhase);
+      scheduleEmotion();
+    }, phase.delay);
+  }
+
+  function applyPhase(phase) {
+    const mood = PHASES[phase].mood;
+    if (phase === 'sleepy') {
+      blob.setState('sleepy');
+      const snore = document.getElementById('snore');
+      if (snore) snore.classList.remove('hidden');
+      showBubble('Zzz… 😴', 3000);
+    } else if (phase === 'sad') {
+      const snore = document.getElementById('snore');
+      if (snore) snore.classList.add('hidden');
+      blob.setState('sad', { holdMs: 0 });
+      showBubble('Kamu lama nggak ngobrol… 🥺', 3500);
+      // Start tear drops
+      startTears();
+    } else if (phase === 'cry') {
+      blob.setState('sad', { holdMs: 0 });
+      showBubble('Hiks… ${PERSONA} nangis… 😭', 4000);
+      // More tears
+      startTears();
+    }
+  }
+
+  /* ── Tear drop animation ── */
+  let tearContainer = null;
+  let tearInterval = null;
+
+  function startTears() {
+    if (tearInterval) return; // already running
+    if (!tearContainer) {
+      tearContainer = document.createElement('div');
+      tearContainer.className = 'tear-container';
+      tearContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;';
+      const stage = document.getElementById('stage');
+      if (stage) stage.appendChild(tearContainer);
+    }
+
+    tearInterval = setInterval(() => {
+      if (currentPhase !== 'sad' && currentPhase !== 'cry') {
+        stopTears();
+        return;
+      }
+      spawnTear();
+      if (currentPhase === 'cry') spawnTear(); // double tears when crying
+    }, 1200);
+  }
+
+  function spawnTear() {
+    if (!tearContainer) return;
+    const tear = document.createElement('div');
+    tear.className = 'tear-drop';
+    const fromLeft = Math.random() < 0.5;
+    const startX = fromLeft ? 38 : 62; // % position near eyes
+    const drift = (Math.random() - 0.5) * 8;
+    tear.style.cssText = `
+      position:absolute;
+      left:${startX}%;
+      top:42%;
+      width:8px;height:12px;
+      background:rgba(100,150,255,0.7);
+      border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
+      transform:translate(-50%,-50%);
+      animation:tearFall ${1.5 + Math.random() * 0.5}s ease-in forwards;
+      --drift:${drift}px;
+    `;
+    tearContainer.appendChild(tear);
+    setTimeout(() => tear.remove(), 2200);
+  }
+
+  function stopTears() {
+    if (tearInterval) { clearInterval(tearInterval); tearInterval = null; }
+  }
+
+  function init() {
+    ['pointerdown', 'pointermove', 'keydown', 'click'].forEach(ev => {
+      document.addEventListener(ev, () => markInteraction(ev === 'pointerdown' ? 'poke' : 'touch'), { passive: true });
+    });
+    scheduleEmotion();
+  }
+
+  function getStats() {
+    return {
+      pokeCount, chatCount, powerCount,
+      sessionDuration: Date.now() - sessionStart,
+      lastChatSentiment,
+      phase: currentPhase
+    };
+  }
+
+  return { markInteraction, setChatSentiment, getPhase, isAway, getStats, init, stopTears };
+})();
 
 function initPointer() {
   const move = (e) => {
@@ -471,7 +733,7 @@ function initSound() {
   els.btnSound.addEventListener('click', () => {
     muted = !muted;
     store.set('blub.muted', muted ? '1' : '0');
-    if (muted) speechSynthesis?.cancel();
+    if (muted) { speechSynthesis?.cancel(); stopMiMo(); }
     render();
     toast(muted ? 'Suara dimatikan' : 'Suara dinyalakan');
   });
@@ -487,13 +749,16 @@ function initTheme() {
 }
 
 function initSettings() {
-  const defaults = { url: '', key: '', model: '', sys: '' };
+  const defaults = { url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
   const open = () => {
     const cfg = { ...defaults, ...JSON.parse(store.get('blub.settings', '{}')) };
     els.setUrl.value = cfg.url || '';
     els.setKey.value = cfg.key || '';
     els.setModel.value = cfg.model || '';
     els.setSys.value = cfg.sys || '';
+    els.setTtsKey.value = cfg.ttsKey || '';
+    els.setTtsVoice.value = cfg.ttsVoice || 'Chloe';
+    els.setTtsEnabled.checked = !!cfg.ttsEnabled;
     els.settingsDlg.showModal();
   };
   els.btnSettings.addEventListener('click', open);
@@ -504,7 +769,10 @@ function initSettings() {
         url: els.setUrl.value.trim(),
         key: els.setKey.value.trim(),
         model: els.setModel.value.trim(),
-        sys: els.setSys.value.trim()
+        sys: els.setSys.value.trim(),
+        ttsKey: els.setTtsKey.value.trim(),
+        ttsVoice: els.setTtsVoice.value,
+        ttsEnabled: els.setTtsEnabled.checked
       })
     );
     els.settingsDlg.close();
@@ -708,7 +976,9 @@ const blob = new BlobCharacter(els.svg, {
 });
 
 const idleAnims = startIdleAnimations(els.svg, {
-  onBubble: (text, ms) => showBubble(text, ms)
+  onBubble: (text, ms) => showBubble(text, ms),
+  onIdleStart: (idleType) => showIdleBadge(idleType),
+  onIdleEnd: () => hideIdleBadge()
 });
 
 const musicDancer = createMusicDancer(els.svg, blob);
@@ -794,20 +1064,47 @@ if (els.radialMenu) {
   document.addEventListener('touchend', onUp);
 }
 
+/* Panel backdrop — dims the blob area, click to close */
+let panelBackdrop = null;
+function ensureBackdrop() {
+  if (panelBackdrop) return panelBackdrop;
+  panelBackdrop = document.createElement('div');
+  panelBackdrop.className = 'panel-backdrop';
+  panelBackdrop.addEventListener('click', () => closeAllPanels());
+  document.body.appendChild(panelBackdrop);
+  return panelBackdrop;
+}
+function showBackdrop() {
+  const b = ensureBackdrop();
+  b.classList.remove('hidden');
+  requestAnimationFrame(() => b.classList.add('visible'));
+}
+function hideBackdrop() {
+  if (!panelBackdrop) return;
+  panelBackdrop.classList.remove('visible');
+  setTimeout(() => panelBackdrop.classList.add('hidden'), 250);
+}
+
 function openPanel(id) {
   closeRadialMenu();
   document.querySelectorAll('.feature-panel').forEach((p) => (p.hidden = true));
   const panel = document.getElementById(id);
   if (panel) panel.hidden = false;
+  hideLauncher();
+  showBackdrop();
 }
 
 function closePanel(id) {
   const panel = document.getElementById(id);
   if (panel) panel.hidden = true;
+  showLauncher();
+  hideBackdrop();
 }
 
 function closeAllPanels() {
   document.querySelectorAll('.feature-panel').forEach((p) => (p.hidden = true));
+  showLauncher();
+  hideBackdrop();
 }
 
 // Swipe-to-rotate + Drag-and-bounce physics
@@ -1004,6 +1301,7 @@ els.svg.addEventListener('pointerup', (e) => {
     blobUnsquish();
     blob.poke();
     playPop();
+    emotion.markInteraction('poke');
     dragStartAngle = null;
     return;
   }
@@ -1013,6 +1311,7 @@ els.svg.addEventListener('pointerup', (e) => {
     applyBlobTransform();
     blob.poke();
     playPop();
+    emotion.markInteraction('poke');
   } else {
     const dragDist = Math.hypot(blobOffsetX, blobOffsetY);
     if (dragDist > 20) {
@@ -1064,6 +1363,15 @@ const blobLauncher = $('#blobLauncher');
 const launcherBlob = blobLauncher ? blobLauncher.querySelector('.launcher-blob') : null;
 const launcherMic = blobLauncher ? blobLauncher.querySelector('.launcher-mic') : null;
 let voiceActive = false;
+
+/* Hide launcher during full-screen takeovers (meditasi, timer, mic mode)
+   to prevent menu collision with the active session. */
+function hideLauncher() {
+  if (blobLauncher) blobLauncher.classList.add('hidden');
+}
+function showLauncher() {
+  if (blobLauncher) blobLauncher.classList.remove('hidden');
+}
 
 function setLauncherMode(mode) {
   if (!launcherBlob || !launcherMic) return;
@@ -1199,6 +1507,8 @@ let meditasiTotal = 0;
 let meditasiPresetMin = 5;
 let meditasiAudioCtx = null;
 let meditasiBowlType = 'tibetan';
+let meditasiGuided = true; // true = suara TTS, false = hening
+let meditasiLastSpoken = '';
 
 const BOWL_SOUNDS = {
   tibetan:  { freqs: [196, 247, 330],       decay: 5, type: 'sine' },
@@ -1228,6 +1538,29 @@ function playBowlSound(bowlType) {
   });
 }
 
+/* ── Guided meditation voice (Indonesian TTS) ── */
+function speakGuided(text, opts = {}) {
+  if (!meditasiGuided) return;
+  if (!('speechSynthesis' in window)) return;
+  try {
+    // Cancel any queued speech so instructions don't pile up
+    if (opts.interrupt !== false) window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'id-ID';
+    u.rate = opts.rate || 0.85;
+    u.pitch = opts.pitch || 1.0;
+    u.volume = opts.volume ?? 0.9;
+    window.speechSynthesis.speak(u);
+    meditasiLastSpoken = text;
+  } catch {}
+}
+
+function stopGuided() {
+  if ('speechSynthesis' in window) {
+    try { window.speechSynthesis.cancel(); } catch {}
+  }
+}
+
 function meditasiRenderTimer() {
   const m = Math.floor(meditasiLeft / 60);
   const s = meditasiLeft % 60;
@@ -1237,6 +1570,7 @@ function meditasiRenderTimer() {
 function startMeditasi() {
   if (!els.meditasiOverlay.classList.contains('hidden')) return;
   els.meditasiOverlay.classList.remove('hidden');
+  hideLauncher();
   meditasiRunning = false;
   meditasiPrepping = false;
   meditasiLeft = meditasiPresetMin * 60;
@@ -1252,8 +1586,9 @@ function startMeditasi() {
   document.querySelectorAll('.meditasi-bowl-pick').forEach(b => {
     b.classList.toggle('active', b.dataset.bowl === meditasiBowlType);
   });
-  // Blob enters calm state
-  blob.setState('listen', { holdMs: 0 });
+  // Blob enters meditation: eyes closed, breathing, calm glow
+  idleAnims.stop();
+  blob.enterMeditation();
 }
 
 function meditasiTick() {
@@ -1266,18 +1601,29 @@ function meditasiTick() {
     meditasiRenderTimer();
     // Bowl berbunyi saat selesai
     playBowlSound();
+    speakGuided('Meditasi selesai. Tarik napas dalam, buka mata perlahan. Terima kasih sudah meditasi bersamaku.');
     showBubble('Meditasi selesai 🙏', 3000);
     return;
   }
   meditasiLeft--;
   meditasiRenderTimer();
-  // Breathing guidance
+  // Breathing guidance — 8-detik cycle: 4s tarik, 4s hembus
   const phase = meditasiLeft % 8;
-  if (phase === 0) els.meditasiLabel.textContent = 'Tarik napas... 🌬️';
-  else if (phase === 4) els.meditasiLabel.textContent = 'Hembuskan... 😮‍💨';
-  // Bowl setiap menit
+  if (phase === 0) {
+    els.meditasiLabel.textContent = 'Tarik napas... 🌬️';
+    speakGuided('Tarik napas perlahan', { rate: 0.8 });
+  }
+  else if (phase === 4) {
+    els.meditasiLabel.textContent = 'Hembuskan... 😮‍💨';
+    speakGuided('Hembuskan', { rate: 0.8 });
+  }
+  // Bowl setiap menit + pengingat lembut
   if (meditasiLeft % 60 === 0 && meditasiLeft < meditasiTotal) {
     playBowlSound();
+    if (meditasiLeft > 60) {
+      const minsLeft = Math.floor(meditasiLeft / 60);
+      speakGuided(`Tersisa ${minsLeft} menit. Tetap fokus pada napasmu.`);
+    }
   }
 }
 
@@ -1290,6 +1636,7 @@ els.meditasiStart.addEventListener('click', () => {
     els.meditasiLabel.textContent = 'Dibatalkan';
     meditasiLeft = meditasiPresetMin * 60;
     meditasiRenderTimer();
+    stopGuided();
     return;
   }
   // Saat running → klik = jeda
@@ -1298,6 +1645,7 @@ els.meditasiStart.addEventListener('click', () => {
     meditasiRunning = false;
     els.meditasiStart.textContent = 'Lanjut';
     els.meditasiLabel.textContent = 'Dijeda ⏸️';
+    stopGuided();
     return;
   }
   // Saat idle → klik = mulai dengan 5 detik prep
@@ -1307,6 +1655,7 @@ els.meditasiStart.addEventListener('click', () => {
   els.meditasiLabel.textContent = `Siap... ${prepLeft}`;
   // Bowl berbunyi saat mulai
   playBowlSound();
+  speakGuided('Mari kita mulai meditasi. Tutup mata, relaksasi badan.');
   clearInterval(meditasiPrepTimer);
   meditasiPrepTimer = setInterval(() => {
     prepLeft--;
@@ -1317,9 +1666,11 @@ els.meditasiStart.addEventListener('click', () => {
       meditasiRunning = true;
       els.meditasiStart.textContent = 'Jeda';
       els.meditasiLabel.textContent = 'Tarik napas... 🌬️';
+      speakGuided('Mulai. Tarik napas perlahan.');
       meditasiInterval = setInterval(meditasiTick, 1000);
     } else {
       els.meditasiLabel.textContent = `Siap... ${prepLeft}`;
+      if (prepLeft <= 3) speakGuided(String(prepLeft), { rate: 1.0 });
     }
   }, 1000);
 });
@@ -1332,6 +1683,17 @@ document.querySelectorAll('.meditasi-bowl-pick').forEach(btn => {
     btn.classList.add('active');
     // Preview suara bowl yang dipilih
     playBowlSound();
+  });
+});
+
+// Guide picker — pilih mode guided (suara TTS) atau hening
+document.querySelectorAll('.meditasi-guide-pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    meditasiGuided = (btn.dataset.guide === 'suara');
+    document.querySelectorAll('.meditasi-guide-pick').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (!meditasiGuided) stopGuided();
+    else speakGuided('Mode guided aktif. Aku akan membimbing napasmu.');
   });
 });
 
@@ -1354,7 +1716,10 @@ els.meditasiClose.addEventListener('click', () => {
   meditasiPrepping = false;
   meditasiRunning = false;
   els.meditasiOverlay.classList.add('hidden');
-  blob.setState('idle', { holdMs: 0 });
+  showLauncher();
+  stopGuided();
+  blob.exitMeditation();
+  idleAnims.resume();
 });
 
 document.querySelectorAll('.btn-back').forEach((btn) => {
@@ -1534,6 +1899,29 @@ let blobTimerLeft = 25 * 60;
 let blobTimerTotal = 25 * 60;
 let blobTimerSessions = 0;
 let blobTimerIsBreak = false;
+let blobTimerTickCtx = null;
+
+/* Soft tick-tock sound for the blob timer.
+   - Alternates high/low pitch so it sounds like a real clock.
+   - Very quiet so it's not annoying over long sessions. */
+function playTickTock(high) {
+  if (muted) return;
+  if (!blobTimerTickCtx) blobTimerTickCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = blobTimerTickCtx;
+  if (ctx.state === 'suspended') ctx.resume();
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = high ? 880 : 660;
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.06, now + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.1);
+}
 
 function blobTimerRender() {
   const m = Math.floor(blobTimerLeft / 60);
@@ -1569,6 +1957,8 @@ function blobTimerTick() {
   }
   blobTimerLeft--;
   blobTimerRender();
+  // Soft tick-tock each second (alternates high/low)
+  playTickTock(blobTimerLeft % 2 === 0);
 }
 
 function startBlobTimer() {
@@ -1576,6 +1966,7 @@ function startBlobTimer() {
   idleAnims.stop();
   blob.enterTimerMode();
   els.blobTimerOverlay.classList.remove('hidden');
+  hideLauncher();
   // Reset state
   blobTimerLeft = 25 * 60;
   blobTimerTotal = 25 * 60;
@@ -1591,6 +1982,7 @@ function closeBlobTimer() {
   clearInterval(blobTimerInterval);
   blobTimerRunning = false;
   els.blobTimerOverlay.classList.add('hidden');
+  showLauncher();
   blob.exitTimerMode();
   idleAnims.resume();
 }
@@ -1877,6 +2269,7 @@ restoreChat();
 greet();
 registerSW();
 scheduleIdle();
+emotion.init();
 
 console.info('[blub] build', APP_VERSION, '| persona:', PERSONA);
 applyPersonaName();

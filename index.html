@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v74';
+      var V='v85';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('blub.activeSw')===V)return;
@@ -206,6 +206,10 @@
             <button class="meditasi-bowl-pick" data-bowl="japanese">🪷 Japanese</button>
           </div>
           <div class="meditasi-controls">
+            <button class="meditasi-guide-pick active" data-guide="suara">🔊 Guided Suara</button>
+            <button class="meditasi-guide-pick" data-guide="diam">🔇 Tanpa Suara</button>
+          </div>
+          <div class="meditasi-controls">
             <button class="meditasi-btn" id="meditasiStart">Mulai</button>
             <button class="meditasi-btn meditasi-close" id="meditasiClose">Selesai</button>
           </div>
@@ -216,8 +220,8 @@
             <button class="btn-back" data-close="panelPlay">←</button>
             <span class="panel-title">🎮 Play</span>
           </div>
-          <div class="panel-body pomo-center">
-            <p class="pomo-label">Colek badanku atau pilih aksi di bawah!</p>
+          <div class="panel-body">
+            <p class="pomo-label" style="padding:12px 16px 0;text-align:center;">Colek badanku atau pilih aksi di bawah!</p>
             <div class="play-grid">
               <button class="play-card" data-poke="1">👆 Poke Biasa</button>
               <button class="play-card" data-color="merah">🔴 Jadi Merah</button>
@@ -234,8 +238,8 @@
             <button class="btn-back" data-close="panelEntertain">←</button>
             <span class="panel-title">🎭 Entertain</span>
           </div>
-          <div class="panel-body pomo-center">
-            <p class="pomo-label">Pilih hiburan buat kamu!</p>
+          <div class="panel-body">
+            <p class="pomo-label" style="padding:12px 16px 0;text-align:center;">Pilih hiburan buat kamu!</p>
             <div class="play-grid">
               <button class="play-card" data-ent="joke">😂 Kasih Joke</button>
               <button class="play-card" data-ent="motivasi">💪 Motivasi</button>
@@ -252,13 +256,13 @@
             <button class="btn-back" data-close="panelMusic">←</button>
             <span class="panel-title">🎵 Music Dance</span>
           </div>
-          <div class="panel-body pomo-center">
-            <p class="pomo-label" id="musicStatus">Blob menari mengikuti irama musik!</p>
+          <div class="panel-body">
+            <p class="pomo-label" id="musicStatus" style="padding:12px 16px 0;text-align:center;">Blob menari mengikuti irama musik!</p>
             <div class="play-grid">
               <button class="play-card" id="musicMic">🎤 Dengar dari Mic</button>
               <button class="play-card" id="musicStop">⏹️ Stop Dance</button>
             </div>
-            <p class="hint" style="margin-top:12px;text-align:center;">Putar musik dari app lain, lalu pilih "Dengar dari Mic". Blob akan menari mengikuti beat & tempo!</p>
+            <p class="hint" style="padding:0 16px 12px;text-align:center;font-size:0.8rem;">Putar musik dari app lain, lalu pilih "Dengar dari Mic". Blob akan menari mengikuti beat & tempo!</p>
           </div>
         </section>
 
@@ -342,6 +346,26 @@
         </label>
         <label>Kepribadian (system prompt)
           <textarea id="setSys" rows="3" placeholder="Kamu adalah Blub…"></textarea>
+        </label>
+        <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+        <p class="hint">
+          <b>🎙️ MiMo TTS (opsional)</b> — Suara AI natural dari Xiaomi. Dapat API Key gratis di
+          <a href="https://mimo.mi.com" target="_blank">mimo.mi.com</a>.
+        </p>
+        <label>MiMo API Key
+          <input id="setTtsKey" type="password" placeholder="mk-... (dari mimo.mi.com)" />
+        </label>
+        <label>MiMo Voice
+          <select id="setTtsVoice">
+            <option value="Chloe">Chloe (EN Female — cerah)</option>
+            <option value="Mia">Mia (EN Female — lembut)</option>
+            <option value="Milo">Milo (EN Male)</option>
+            <option value="Dean">Dean (EN Male — dalam)</option>
+          </select>
+        </label>
+        <label class="chip-row" style="flex-direction:row;align-items:center;gap:8px;">
+          <input id="setTtsEnabled" type="checkbox" style="width:auto;">
+          <span>Pakai MiMo TTS (nonaktif = pakai suara browser)</span>
         </label>
         <div class="dlg-actions">
           <button id="btnShape" type="button" class="btn ghost">🎨 Ganti bentuk</button>

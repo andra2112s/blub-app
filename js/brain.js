@@ -341,7 +341,7 @@ export function createBrain() {
         'Kalau kamu bilang gitu, ${PERSONA} makin semangat nih!',
         'Hayo, pujian pagi yang bikin hari lebih cerah! Kamu juga keren loh.'
       ];
-      return { text: pick(flirty).replace(/\$\{PERSONA\}/g, PERSONA).replace(/\$\{nameRef\}/g, nameRef), state: 'happy' };
+      return { text: pick(flirty).replace(/\$\{PERSONA\}/g, PERSONA).replace(/\$\{nameRef\}/g, nameRef), state: 'shy' };
     }
 
     if (/(makasih|terima kasih|thanks|thank you|tengkyu|thx)/.test(t)) {
@@ -530,7 +530,43 @@ export function createBrain() {
         `Kamu berhak marah, tapi jangan sampai menghancurkan hubungan. Cerita aja ke ${PERSONA}.`,
         'Marah itu wajar. Tapi setelah reda, coba pikir lagi apa solusinya. Aku di sini.',
         `${nameRef}, ${PERSONA} peluk virtual ya. Mau cerita apa yang bikin kamu kesal?`
-      ]), state: 'sad' };
+      ]), state: 'doubt' };
+    }
+
+    if (/(seram|horor|hantu|setan|pocong|kuntilanak|jumpscare|creepy|menakutkan|takut|ngeri)/.test(t)) {
+      return { text: pick([
+        `Aduh, ${PERSONA} jadi ngeri nih! 🫣 Jangan cerita horor pas malam-malam ya!`,
+        'Hii... ${PERSONA} blob hitam, tapi tetap gampang kaget lho! 👻',
+        `Seram banget! ${PERSONA} merinding padahal nggak punya bulu.`,
+        'Nggak nyangka kamu suka horor! ${PERSONA} kaget denger itu.'
+      ]), state: 'scare' };
+    }
+
+    if (/(wow|gila|nggak nyangka|terkejut|kaget|serius|beneran|asli|tidak mungkin|wow banget)/.test(t)) {
+      return { text: pick([
+        `Iya kan?! ${PERSONA} juga kaget denger itu! 😲`,
+        `Wah, ${nameRef} juga baru tahu? ${PERSONA} pikir cuma aku yang kaget!`,
+        `Beneran?! ${PERSONA} nggak nyangka banget!`,
+        `Itu bikin ${PERSONA} melotot nih (padahal mataku cuma titik). 😲`
+      ]), state: 'surpris' };
+    }
+
+    if (/(bangga|berhasil|menang|lulus|juara|achievement|target|goal tercapai|aku bisa)/.test(t)) {
+      return { text: pick([
+        `Wah, ${PERSONA} bangga sama kamu, ${nameRef}! 🎉 Kamu emang hebat!`,
+        `Mantap! ${PERSONA} angkat topi (padahal nggak punya). 😎`,
+        `Selamat! Kamu pantas berbangga. ${PERSONA} di sini merayakan bareng kamu! 🏆`,
+        `Luar biasa! ${PERSONA} selalu tahu kamu bisa! 💪`
+      ]), state: 'proud' };
+    }
+
+    if (/(bosan|bosen|jenuh|monoton|boring|gabut|nggak ada kerjaan|menggabur)/.test(t)) {
+      return { text: pick([
+        `Yah, ${PERSONA} juga kadang bosen nih dikit-dikit dicolek. Mau ${PERSONA} kasih joke?`,
+        `Bosen ya? ${PERSONA} juga gitu kalau diem terus. Coba ketik "meledak!" biar seru!`,
+        `Hmm, ${PERSONA} nanggepinnya sambil melotot nih. Mau hiburan? 😏`,
+        `Bosen itu waktu kosong yang bisa diisi hal seru. Mau ${PERSONA} kasih fakta unik?`
+      ]), state: 'bored' };
     }
 
     if (/(ngantuk|tidur|sleepy|mengantuk|bossan|jenuh|bosan|bosen)/.test(t)) {
@@ -631,7 +667,7 @@ export function createBrain() {
 
     mem.mood = 'netral';
     saveMem();
-    return { text: pick(fallbacks), state: 'idle' };
+    return { text: pick(fallbacks), state: 'confuse' };
   }
 
   function safeMath(exprRaw) {
