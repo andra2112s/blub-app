@@ -1187,25 +1187,35 @@ let meditasiTotal = 0;
 let meditasiPresetMin = 5;
 let meditasiAudioCtx = null;
 let meditasiBowlOn = false;
+let meditasiBowlType = 'tibetan'; // 'tibetan', 'crystal', 'japanese'
+let meditasiPrepTimer = null;
+let meditasiPrepLeft = 0;
 
-function playBowlSound() {
+const BOWL_SOUNDS = {
+  tibetan:  { name: 'Tibetan',  freqs: [196, 247, 330],   decay: 5, type: 'sine' },
+  crystal:  { name: 'Crystal',  freqs: [440, 660, 880],   decay: 4, type: 'sine' },
+  japanese: { name: 'Japanese', freqs: [220, 294, 370, 440], decay: 3, type: 'triangle' }
+};
+
+function playBowlSound(bowlType) {
+  const bt = bowlType || meditasiBowlType;
+  const cfg = BOWL_SOUNDS[bt] || BOWL_SOUNDS.tibetan;
   if (!meditasiAudioCtx) meditasiAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   const ctx = meditasiAudioCtx;
+  if (ctx.state === 'suspended') ctx.resume();
   const now = ctx.currentTime;
-  // Simulate Tibetan singing bowl — rich harmonics
-  const fundamentals = [196, 247, 330]; // G3, B3, E4 harmonics
-  fundamentals.forEach((freq, i) => {
+  cfg.freqs.forEach((freq, i) => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'sine';
+    osc.type = cfg.type;
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(0.15 / (i + 1), now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 4 + i);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + cfg.decay + i);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
-    osc.stop(now + 5 + i);
+    osc.stop(now + cfg.decay + i + 1);
   });
 }
 
@@ -1221,6 +1231,10 @@ function startMeditasi() {
   document.querySelectorAll('.meditasi-preset').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.min) === meditasiPresetMin);
   });
+  // Highlight active bowl
+  document.querySelectorAll('.meditasi-bowl-pick').forEach(b => {
+    b.classList.toggle('active', b.dataset.bowl === meditasiBowlType);
+  });
   // Blob enters calm state
   blob.setState('listen', { holdMs: 0 });
 }
@@ -1231,6 +1245,7 @@ function meditasiTick() {
     meditasiRunning = false;
     els.meditasiStart.textContent = 'Mulai';
     els.meditasiLabel.textContent = 'Selesai 🙏';
+    // Bowl always plays at end (if bowl is on)
     if (meditasiBowlOn) playBowlSound();
     showBubble('Meditasi selesai 🙏', 3000);
     meditasiLeft = meditasiPresetMin * 60;
@@ -1248,17 +1263,42 @@ function meditasiTick() {
 }
 
 els.meditasiStart.addEventListener('click', () => {
+  // If prep countdown is running, clicking cancels it
+  if (!meditasiRunning && meditasiPrepLeft > 0 && meditasiPrepTimer) {
+    clearInterval(meditasiPrepTimer);
+    meditasiPrepTimer = null;
+    meditasiPrepLeft = 0;
+    els.meditasiStart.textContent = 'Mulai';
+    els.meditasiLabel.textContent = 'Dibatalkan';
+    return;
+  }
   if (meditasiRunning) {
     clearInterval(meditasiInterval);
     meditasiRunning = false;
     els.meditasiStart.textContent = 'Lanjut';
     els.meditasiLabel.textContent = 'Dijeda';
   } else {
-    meditasiRunning = true;
-    els.meditasiStart.textContent = 'Jeda';
-    els.meditasiLabel.textContent = 'Tarik napas...';
-    meditasiInterval = setInterval(meditasiTick, 1000);
+    // 5-second prep countdown before timer starts
+    meditasiPrepLeft = 5;
+    els.meditasiStart.textContent = 'Batal';
+    els.meditasiLabel.textContent = 'Siap... 5';
+    // Bowl sound at start of prep
     if (meditasiBowlOn) playBowlSound();
+    clearInterval(meditasiPrepTimer);
+    meditasiPrepTimer = setInterval(() => {
+      meditasiPrepLeft--;
+      if (meditasiPrepLeft <= 0) {
+        clearInterval(meditasiPrepTimer);
+        meditasiPrepTimer = null;
+        // Now actually start the meditation timer
+        meditasiRunning = true;
+        els.meditasiStart.textContent = 'Jeda';
+        els.meditasiLabel.textContent = 'Tarik napas...';
+        meditasiInterval = setInterval(meditasiTick, 1000);
+      } else {
+        els.meditasiLabel.textContent = `Siap... ${meditasiPrepLeft}`;
+      }
+    }, 1000);
   }
 });
 
@@ -1267,6 +1307,19 @@ els.meditasiBowl.addEventListener('click', () => {
   els.meditasiBowl.style.opacity = meditasiBowlOn ? '1' : '0.5';
   els.meditasiBowl.textContent = meditasiBowlOn ? '🥣 Bowl ✓' : '🥣 Bowl';
   if (meditasiBowlOn) playBowlSound();
+});
+
+// Bowl type picker
+document.querySelectorAll('.meditasi-bowl-pick').forEach(btn => {
+  btn.addEventListener('click', () => {
+    meditasiBowlType = btn.dataset.bowl;
+    document.querySelectorAll('.meditasi-bowl-pick').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    meditasiBowlOn = true;
+    els.meditasiBowl.style.opacity = '1';
+    els.meditasiBowl.textContent = '🥣 Bowl ✓';
+    playBowlSound(); // preview the selected bowl
+  });
 });
 
 document.querySelectorAll('.meditasi-preset').forEach(btn => {
@@ -1284,6 +1337,9 @@ document.querySelectorAll('.meditasi-preset').forEach(btn => {
 
 els.meditasiClose.addEventListener('click', () => {
   clearInterval(meditasiInterval);
+  clearInterval(meditasiPrepTimer);
+  meditasiPrepTimer = null;
+  meditasiPrepLeft = 0;
   meditasiRunning = false;
   els.meditasiOverlay.classList.add('hidden');
   blob.setState('idle', { holdMs: 0 });

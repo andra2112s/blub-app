@@ -579,14 +579,15 @@ export class BlobCharacter {
   };
 
   static computeDotPositions(timeStr) {
-    // 5x7 font with smaller spacing — more dots but fits viewBox ±158
+    // 5x7 font — width 5 for digits, 2 for colon
     const SP = 11;    // dot spacing
-    const GAP = 5;    // gap between characters
+    const GAP = 6;    // gap between characters
     const ROWS = 7;
-    // Compute total width (single dot per pixel, clean dot matrix)
+    // Compute total width
     let totalW = 0;
     for (const ch of timeStr) {
-      totalW += (ch === ':' ? 1 : 3) * SP + GAP;
+      const cw = ch === ':' ? 2 : 5;
+      totalW += cw * SP + GAP;
     }
     totalW -= GAP;
     let x = -totalW / 2;
@@ -594,8 +595,8 @@ export class BlobCharacter {
     const pts = [];
     for (const ch of timeStr) {
       const font = BlobCharacter.DOT_FONT[ch];
-      if (!font) { x += 3 * SP + GAP; continue; }
-      const cw = ch === ':' ? 1 : 3;
+      if (!font) { x += 5 * SP + GAP; continue; }
+      const cw = ch === ':' ? 2 : 5;
       for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < cw; c++) {
           if (font[r][c] === '1') {
@@ -609,7 +610,7 @@ export class BlobCharacter {
   }
 
   static getTimerDotRadius() {
-    return 4.5;
+    return 4;
   }
 
   enterTimerMode() {
