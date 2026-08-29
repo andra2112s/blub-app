@@ -1349,6 +1349,13 @@ body {
   font-weight: 600;
   letter-spacing: 0.03em;
 }
+.meditasi-timer {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #f0eff4;
+  letter-spacing: 0.05em;
+}
 .meditasi-controls {
   display: flex;
   gap: 8px;
