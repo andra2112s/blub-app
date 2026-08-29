@@ -1764,7 +1764,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v31';
+const APP_VERSION = 'v74';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
