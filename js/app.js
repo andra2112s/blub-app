@@ -480,9 +480,9 @@ const emotion = (function() {
   let awayNotified = false;
 
   const PHASES = {
-    idle:   { delay: 30000,  next: 'sleepy', mood: 'idle'   },
-    sleepy: { delay: 45000,  next: 'sad',    mood: 'sleepy' },
-    sad:    { delay: 60000,  next: 'cry',    mood: 'sad'    },
+    idle:   { delay: 120000, next: 'sleepy', mood: 'idle'   },
+    sleepy: { delay: 180000, next: 'sad',    mood: 'sleepy' },
+    sad:    { delay: 300000, next: 'cry',    mood: 'sad'    },
     cry:    { delay: 0,      next: null,     mood: 'sad'    }
   };
 
@@ -572,54 +572,89 @@ const emotion = (function() {
     }
   }
 
-  /* ── Tear drop animation ── */
-  let tearContainer = null;
+  /* ── Tear drop animation (SVG, from actual eye positions) ── */
+  let tearG = null;
   let tearInterval = null;
+  let tearAnims = []; // { el, x0, y0, vy, t0, dur }
 
   function startTears() {
-    if (tearInterval) return; // already running
-    if (!tearContainer) {
-      tearContainer = document.createElement('div');
-      tearContainer.className = 'tear-container';
-      tearContainer.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible;';
-      const stage = document.getElementById('stage');
-      if (stage) stage.appendChild(tearContainer);
-    }
-
+    if (tearInterval) return;
     tearInterval = setInterval(() => {
       if (currentPhase !== 'sad' && currentPhase !== 'cry') {
         stopTears();
         return;
       }
       spawnTear();
-      if (currentPhase === 'cry') spawnTear(); // double tears when crying
-    }, 1200);
+      if (currentPhase === 'cry') spawnTear();
+    }, 3500);
+    // Start RAF loop for tear animation
+    requestAnimationFrame(animateTears);
   }
 
   function spawnTear() {
-    if (!tearContainer) return;
-    const tear = document.createElement('div');
-    tear.className = 'tear-drop';
-    const fromLeft = Math.random() < 0.5;
-    const startX = fromLeft ? 38 : 62; // % position near eyes
-    const drift = (Math.random() - 0.5) * 8;
-    tear.style.cssText = `
-      position:absolute;
-      left:${startX}%;
-      top:42%;
-      width:8px;height:12px;
-      background:rgba(100,150,255,0.7);
-      border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
-      transform:translate(-50%,-50%);
-      animation:tearFall ${1.5 + Math.random() * 0.5}s ease-in forwards;
-      --drift:${drift}px;
-    `;
-    tearContainer.appendChild(tear);
-    setTimeout(() => tear.remove(), 2200);
+    const svg = els.svg;
+    if (!svg) return;
+    if (!tearG) {
+      tearG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      tearG.setAttribute('class', 'tear-group');
+      svg.appendChild(tearG);
+    }
+    const eyes = blob.getEyePositions();
+    if (eyes.length === 0) return;
+    const eye = eyes[Math.floor(Math.random() * eyes.length)];
+    // Tear starts just below the eye
+    const x0 = eye.x + (Math.random() - 0.5) * 6;
+    const y0 = eye.y + 8;
+    const tear = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    tear.setAttribute('cx', x0.toFixed(1));
+    tear.setAttribute('cy', y0.toFixed(1));
+    tear.setAttribute('rx', '3.5');
+    tear.setAttribute('ry', '5');
+    tear.setAttribute('fill', 'rgba(100,150,255,0.75)');
+    tearG.appendChild(tear);
+    tearAnims.push({
+      el: tear, x0, y0,
+      drift: (Math.random() - 0.5) * 10,
+      t0: performance.now(),
+      dur: 1500 + Math.random() * 500
+    });
+  }
+
+  function animateTears() {
+    if (tearAnims.length === 0) {
+      if (tearInterval) requestAnimationFrame(animateTears);
+      return;
+    }
+    const now = performance.now();
+    for (let i = tearAnims.length - 1; i >= 0; i--) {
+      const a = tearAnims[i];
+      const p = (now - a.t0) / a.dur;
+      if (p >= 1) {
+        a.el.remove();
+        tearAnims.splice(i, 1);
+        continue;
+      }
+      // Fall down with slight drift, fade out near end
+      const y = a.y0 + p * 80;
+      const x = a.x0 + a.drift * p;
+      const opacity = p < 0.8 ? 0.85 : 0.85 * (1 - (p - 0.8) / 0.2);
+      a.el.setAttribute('cy', y.toFixed(1));
+      a.el.setAttribute('cx', x.toFixed(1));
+      a.el.setAttribute('opacity', opacity.toFixed(2));
+      // Slight stretch as it falls
+      a.el.setAttribute('ry', (5 + p * 2).toFixed(1));
+    }
+    if (tearInterval) requestAnimationFrame(animateTears);
   }
 
   function stopTears() {
     if (tearInterval) { clearInterval(tearInterval); tearInterval = null; }
+    // Fade out remaining tears
+    setTimeout(() => {
+      tearAnims.forEach(a => a.el.remove());
+      tearAnims = [];
+      if (tearG) { tearG.remove(); tearG = null; }
+    }, 2000);
   }
 
   function init() {

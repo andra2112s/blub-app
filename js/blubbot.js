@@ -335,6 +335,15 @@ export class BlobCharacter {
     return this.mood;
   }
 
+  getEyePositions() {
+    return this.eyeEls.map(e => {
+      const t = e.getAttribute('transform') || '';
+      const m = t.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
+      if (!m) return null;
+      return { x: parseFloat(m[5]), y: parseFloat(m[6]) };
+    }).filter(Boolean);
+  }
+
   talk(on) {
     this.isTalking = on;
     const expr = on ? 'excite' : MOOD[this.mood].expr;
