@@ -903,6 +903,29 @@ function startPhysics() {
   physicsRAF = requestAnimationFrame(tick);
 }
 
+// Long-press blob = mochi squish
+let blobLongPressTimer = null;
+let blobLongPressed = false;
+
+function blobSquish() {
+  // Squish: flatten vertically, widen horizontally — like pressing mochi
+  const stage = els.svg.closest('.stage');
+  if (stage) stage.classList.add('mochi-squish');
+  // Also apply direct transform for immediate response
+  els.svg.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+  const baseTransform = `translate(${blobOffsetX.toFixed(1)}px, ${blobOffsetY.toFixed(1)}px) rotate(${currentRotation.toFixed(1)}deg)`;
+  els.svg.style.transform = baseTransform + ' scaleY(0.55) scaleX(1.35)';
+}
+
+function blobUnsquish() {
+  const stage = els.svg.closest('.stage');
+  if (stage) stage.classList.remove('mochi-squish');
+  // Bounce back with elastic spring
+  els.svg.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.8, 0.64, 1)';
+  applyBlobTransform();
+  setTimeout(() => { els.svg.style.transition = ''; }, 520);
+}
+
 els.svg.addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   stopPhysics();
@@ -919,10 +942,24 @@ els.svg.addEventListener('pointerdown', (e) => {
   const cy = rect.top + rect.height / 2;
   dragStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
   els.svg.setPointerCapture(e.pointerId);
+
+  // Long-press = mochi squish effect
+  clearTimeout(blobLongPressTimer);
+  blobLongPressed = false;
+  blobLongPressTimer = setTimeout(() => {
+    if (!hasMoved) {
+      blobLongPressed = true;
+      blobSquish();
+    }
+  }, 500);
 });
 
 els.svg.addEventListener('pointermove', (e) => {
   if (dragStartAngle === null) return;
+  // Cancel squish if user starts dragging
+  if (!blobLongPressed) {
+    clearTimeout(blobLongPressTimer);
+  }
   const rect = els.svg.getBoundingClientRect();
   const cx = rect.left + rect.width / 2;
   const cy = rect.top + rect.height / 2;
@@ -960,6 +997,16 @@ els.svg.addEventListener('pointermove', (e) => {
 
 els.svg.addEventListener('pointerup', (e) => {
   e.stopPropagation();
+  clearTimeout(blobLongPressTimer);
+  if (blobLongPressed) {
+    // Release mochi squish — bounce back
+    blobLongPressed = false;
+    blobUnsquish();
+    blob.poke();
+    playPop();
+    dragStartAngle = null;
+    return;
+  }
   if (!hasMoved) {
     // Tap = poke
     blobOffsetX = 0; blobOffsetY = 0;
@@ -1000,6 +1047,8 @@ els.svg.addEventListener('pointerup', (e) => {
 });
 
 els.svg.addEventListener('pointercancel', () => {
+  clearTimeout(blobLongPressTimer);
+  if (blobLongPressed) { blobLongPressed = false; blobUnsquish(); }
   stopPhysics();
   els.svg.style.transition = 'transform 0.3s ease';
   els.svg.style.transform = 'rotate(0deg)';

@@ -351,7 +351,7 @@ var EXPRESSIONS = [
     id: "somnolent",
     gaze: { yaw: 6, pitch: -9, roll: -3 },
     split: 16,
-    eyes: pair(0.2, 0.42, 0, 0.42)
+    eyes: pair(0.2, 0.08, 0, 0.08)
   }
 ];
 var EXPRESSION_BY_ID = new Map(EXPRESSIONS.map((e) => [e.id, e]));
@@ -865,16 +865,28 @@ var STATES = [
   },
   {
     id: "sleep",
-    duration: 2.4,
-    morph: 0.5,
+    duration: 4,
+    morph: 0.6,
     baseFace: false,
     baseBody: false,
     blinkIn: false,
-    pose: (t) => base({
-      // Breathing blob — gentle vertical bob, full size
-      sil: circle(0.85, { cy: 0.05 + Math.sin(t * (TAU / 3)) * 0.04 }),
-      eyeAlpha: 0
-    })
+    pose: (t) => {
+      // Tilt body 80° — lying down like sleeping on side
+      const tilt = 80 * Math.PI / 180;
+      // Gentle breathing: subtle scale Y oscillation
+      const breath = 1 + Math.sin(t * (TAU / 3)) * 0.03;
+      // Drool bubble: inflates and deflates cyclically
+      const droolPulse = (Math.sin(t * (TAU / 2.5)) + 1) / 2; // 0..1
+      const droolR = 0.06 + droolPulse * 0.08; // grows from 0.06 to 0.14
+      return base({
+        sil: circle(0.8, { rot: tilt, sy: breath }),
+        eyeAlpha: 0,
+        dots: [
+          // Drool bubble near mouth area (offset to side since body is tilted)
+          { x: 0.45, y: 0.15, r: droolR, opacity: 0.7 + droolPulse * 0.3 }
+        ]
+      });
+    }
   },
   {
     id: "egg",

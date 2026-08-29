@@ -1567,35 +1567,35 @@ body {
   pointer-events: auto;
 }
 
-/* ── Powers Radial: 6 items, r=150px ── */
-#powersRadial .srm-btn:nth-child(2) { --pos: translate(0px, -150px); transition-delay: 0.02s; }
-#powersRadial .srm-btn:nth-child(3) { --pos: translate(130px, -75px); transition-delay: 0.06s; }
-#powersRadial .srm-btn:nth-child(4) { --pos: translate(130px, 75px); transition-delay: 0.10s; }
-#powersRadial .srm-btn:nth-child(5) { --pos: translate(0px, 150px); transition-delay: 0.14s; }
-#powersRadial .srm-btn:nth-child(6) { --pos: translate(-130px, 75px); transition-delay: 0.18s; }
-#powersRadial .srm-btn:nth-child(7) { --pos: translate(-130px, -75px); transition-delay: 0.22s; }
+/* ── Powers Radial: 6 items, top semicircle r=130px ── */
+#powersRadial .srm-btn:nth-child(2) { --pos: translate(-130px, 0px); transition-delay: 0.02s; }
+#powersRadial .srm-btn:nth-child(3) { --pos: translate(-105px, -76px); transition-delay: 0.06s; }
+#powersRadial .srm-btn:nth-child(4) { --pos: translate(-40px, -124px); transition-delay: 0.10s; }
+#powersRadial .srm-btn:nth-child(5) { --pos: translate(40px, -124px); transition-delay: 0.14s; }
+#powersRadial .srm-btn:nth-child(6) { --pos: translate(105px, -76px); transition-delay: 0.18s; }
+#powersRadial .srm-btn:nth-child(7) { --pos: translate(130px, 0px); transition-delay: 0.22s; }
 
-/* ── Idle Radial: 20 items, r=195px ── */
-#idleRadial .srm-btn:nth-child(2)  { --pos: translate(0px, -195px); transition-delay: 0.01s; }
-#idleRadial .srm-btn:nth-child(3)  { --pos: translate(60px, -185px); transition-delay: 0.02s; }
-#idleRadial .srm-btn:nth-child(4)  { --pos: translate(115px, -155px); transition-delay: 0.03s; }
-#idleRadial .srm-btn:nth-child(5)  { --pos: translate(155px, -115px); transition-delay: 0.04s; }
-#idleRadial .srm-btn:nth-child(6)  { --pos: translate(185px, -60px); transition-delay: 0.05s; }
-#idleRadial .srm-btn:nth-child(7)  { --pos: translate(195px, 0px); transition-delay: 0.06s; }
-#idleRadial .srm-btn:nth-child(8)  { --pos: translate(185px, 60px); transition-delay: 0.07s; }
-#idleRadial .srm-btn:nth-child(9)  { --pos: translate(155px, 115px); transition-delay: 0.08s; }
-#idleRadial .srm-btn:nth-child(10) { --pos: translate(115px, 155px); transition-delay: 0.09s; }
-#idleRadial .srm-btn:nth-child(11) { --pos: translate(60px, 185px); transition-delay: 0.10s; }
-#idleRadial .srm-btn:nth-child(12) { --pos: translate(0px, 195px); transition-delay: 0.11s; }
-#idleRadial .srm-btn:nth-child(13) { --pos: translate(-60px, 185px); transition-delay: 0.12s; }
-#idleRadial .srm-btn:nth-child(14) { --pos: translate(-115px, 155px); transition-delay: 0.13s; }
-#idleRadial .srm-btn:nth-child(15) { --pos: translate(-155px, 115px); transition-delay: 0.14s; }
-#idleRadial .srm-btn:nth-child(16) { --pos: translate(-185px, 60px); transition-delay: 0.15s; }
-#idleRadial .srm-btn:nth-child(17) { --pos: translate(-195px, 0px); transition-delay: 0.16s; }
-#idleRadial .srm-btn:nth-child(18) { --pos: translate(-185px, -60px); transition-delay: 0.17s; }
-#idleRadial .srm-btn:nth-child(19) { --pos: translate(-155px, -115px); transition-delay: 0.18s; }
-#idleRadial .srm-btn:nth-child(20) { --pos: translate(-115px, -155px); transition-delay: 0.19s; }
-#idleRadial .srm-btn:nth-child(21) { --pos: translate(-60px, -185px); transition-delay: 0.20s; }
+/* ── Idle Radial: 20 items, top semicircle r=150px ── */
+#idleRadial .srm-btn:nth-child(2)  { --pos: translate(-150px, 0px); transition-delay: 0.01s; }
+#idleRadial .srm-btn:nth-child(3)  { --pos: translate(-148px, -25px); transition-delay: 0.02s; }
+#idleRadial .srm-btn:nth-child(4)  { --pos: translate(-142px, -49px); transition-delay: 0.03s; }
+#idleRadial .srm-btn:nth-child(5)  { --pos: translate(-132px, -71px); transition-delay: 0.04s; }
+#idleRadial .srm-btn:nth-child(6)  { --pos: translate(-118px, -92px); transition-delay: 0.05s; }
+#idleRadial .srm-btn:nth-child(7)  { --pos: translate(-102px, -110px); transition-delay: 0.06s; }
+#idleRadial .srm-btn:nth-child(8)  { --pos: translate(-82px, -125px); transition-delay: 0.07s; }
+#idleRadial .srm-btn:nth-child(9)  { --pos: translate(-60px, -137px); transition-delay: 0.08s; }
+#idleRadial .srm-btn:nth-child(10) { --pos: translate(-37px, -145px); transition-delay: 0.09s; }
+#idleRadial .srm-btn:nth-child(11) { --pos: translate(-12px, -149px); transition-delay: 0.10s; }
+#idleRadial .srm-btn:nth-child(12) { --pos: translate(12px, -149px); transition-delay: 0.11s; }
+#idleRadial .srm-btn:nth-child(13) { --pos: translate(37px, -145px); transition-delay: 0.12s; }
+#idleRadial .srm-btn:nth-child(14) { --pos: translate(60px, -137px); transition-delay: 0.13s; }
+#idleRadial .srm-btn:nth-child(15) { --pos: translate(82px, -125px); transition-delay: 0.14s; }
+#idleRadial .srm-btn:nth-child(16) { --pos: translate(102px, -110px); transition-delay: 0.15s; }
+#idleRadial .srm-btn:nth-child(17) { --pos: translate(118px, -92px); transition-delay: 0.16s; }
+#idleRadial .srm-btn:nth-child(18) { --pos: translate(132px, -71px); transition-delay: 0.17s; }
+#idleRadial .srm-btn:nth-child(19) { --pos: translate(142px, -49px); transition-delay: 0.18s; }
+#idleRadial .srm-btn:nth-child(20) { --pos: translate(148px, -25px); transition-delay: 0.19s; }
+#idleRadial .srm-btn:nth-child(21) { --pos: translate(150px, 0px); transition-delay: 0.20s; }
 
 /* ── Feature Panels ── */
 .feature-panel {
