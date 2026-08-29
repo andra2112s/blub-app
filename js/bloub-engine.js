@@ -871,8 +871,8 @@ var STATES = [
     baseBody: false,
     blinkIn: false,
     pose: (t) => base({
-      // Rebond vertical mesure : +-0.19 autour de +0.11, periode 0.6 s.
-      sil: circle(0.1585, { cy: 0.11 + Math.sin(t * (TAU / 0.6)) * 0.19 }),
+      // Breathing blob — gentle vertical bob, full size
+      sil: circle(0.85, { cy: 0.05 + Math.sin(t * (TAU / 3)) * 0.04 }),
       eyeAlpha: 0
     })
   },

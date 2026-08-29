@@ -53,7 +53,12 @@ const els = {
   blobTimerStart: $('#blobTimerStart'),
   blobTimerReset: $('#blobTimerReset'),
   blobTimerClose: $('#blobTimerClose'),
-  blobTimerCount: $('#blobTimerCount')
+  blobTimerCount: $('#blobTimerCount'),
+  meditasiOverlay: $('#meditasiOverlay'),
+  meditasiLabel: $('#meditasiLabel'),
+  meditasiStart: $('#meditasiStart'),
+  meditasiBowl: $('#meditasiBowl'),
+  meditasiClose: $('#meditasiClose')
 };
 
 /* ── Ground shadow: proper shadow physics ── */
@@ -1122,6 +1127,117 @@ els.radialMenu.addEventListener('click', (e) => {
   else if (f === 'idletest') { closeRadialMenu(); els.idleRadial.classList.remove('hidden'); }
   else if (f === 'settings') { closeRadialMenu(); els.settingsDlg.showModal(); }
   else if (f === 'music') { closeRadialMenu(); openPanel('panelMusic'); }
+  else if (f === 'meditasi') { closeRadialMenu(); startMeditasi(); }
+});
+
+/* ── Meditasi Mode ── */
+let meditasiRunning = false;
+let meditasiInterval = null;
+let meditasiLeft = 0;
+let meditasiTotal = 0;
+let meditasiPresetMin = 5;
+let meditasiAudioCtx = null;
+let meditasiBowlOn = false;
+
+function playBowlSound() {
+  if (!meditasiAudioCtx) meditasiAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const ctx = meditasiAudioCtx;
+  const now = ctx.currentTime;
+  // Simulate Tibetan singing bowl — rich harmonics
+  const fundamentals = [196, 247, 330]; // G3, B3, E4 harmonics
+  fundamentals.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.15 / (i + 1), now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 4 + i);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 5 + i);
+  });
+}
+
+function startMeditasi() {
+  if (els.meditasiOverlay.classList.contains('hidden') === false) return;
+  els.meditasiOverlay.classList.remove('hidden');
+  meditasiRunning = false;
+  meditasiLeft = meditasiPresetMin * 60;
+  meditasiTotal = meditasiLeft;
+  els.meditasiStart.textContent = 'Mulai';
+  els.meditasiLabel.textContent = 'Siap meditasi 🧘';
+  // Highlight active preset
+  document.querySelectorAll('.meditasi-preset').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.min) === meditasiPresetMin);
+  });
+  // Blob enters calm state
+  blob.setState('listen', { holdMs: 0 });
+}
+
+function meditasiTick() {
+  if (meditasiLeft <= 0) {
+    clearInterval(meditasiInterval);
+    meditasiRunning = false;
+    els.meditasiStart.textContent = 'Mulai';
+    els.meditasiLabel.textContent = 'Selesai 🙏';
+    if (meditasiBowlOn) playBowlSound();
+    showBubble('Meditasi selesai 🙏', 3000);
+    meditasiLeft = meditasiPresetMin * 60;
+    return;
+  }
+  meditasiLeft--;
+  // Breathing guidance
+  const phase = meditasiLeft % 8;
+  if (phase === 0) els.meditasiLabel.textContent = 'Tarik napas...';
+  else if (phase === 4) els.meditasiLabel.textContent = 'Hembuskan...';
+  // Play bowl at start of each minute
+  if (meditasiBowlOn && meditasiLeft % 60 === 0 && meditasiLeft < meditasiTotal) {
+    playBowlSound();
+  }
+}
+
+els.meditasiStart.addEventListener('click', () => {
+  if (meditasiRunning) {
+    clearInterval(meditasiInterval);
+    meditasiRunning = false;
+    els.meditasiStart.textContent = 'Lanjut';
+    els.meditasiLabel.textContent = 'Dijeda';
+  } else {
+    meditasiRunning = true;
+    els.meditasiStart.textContent = 'Jeda';
+    els.meditasiLabel.textContent = 'Tarik napas...';
+    meditasiInterval = setInterval(meditasiTick, 1000);
+    if (meditasiBowlOn) playBowlSound();
+  }
+});
+
+els.meditasiBowl.addEventListener('click', () => {
+  meditasiBowlOn = !meditasiBowlOn;
+  els.meditasiBowl.style.opacity = meditasiBowlOn ? '1' : '0.5';
+  els.meditasiBowl.textContent = meditasiBowlOn ? '🥣 Bowl ✓' : '🥣 Bowl';
+  if (meditasiBowlOn) playBowlSound();
+});
+
+document.querySelectorAll('.meditasi-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    meditasiPresetMin = parseInt(btn.dataset.min);
+    document.querySelectorAll('.meditasi-preset').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (!meditasiRunning) {
+      meditasiLeft = meditasiPresetMin * 60;
+      meditasiTotal = meditasiLeft;
+      els.meditasiLabel.textContent = `${meditasiPresetMin}m siap mulai`;
+    }
+  });
+});
+
+els.meditasiClose.addEventListener('click', () => {
+  clearInterval(meditasiInterval);
+  meditasiRunning = false;
+  els.meditasiOverlay.classList.add('hidden');
+  blob.setState('idle', { holdMs: 0 });
 });
 
 document.querySelectorAll('.btn-back').forEach((btn) => {

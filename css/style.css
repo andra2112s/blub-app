@@ -14,9 +14,9 @@
 }
 
 [data-theme="dark"] {
-  --bg: #101014;
-  --surface: #18181e;
-  --surface-2: #1f1f27;
+  --bg: #141418;
+  --surface: #1c1c24;
+  --surface-2: #24242e;
   --text: #f0eff4;
   --muted: #9a9aa5;
   --border: rgba(240, 239, 244, 0.09);
@@ -26,9 +26,9 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #101014;
-    --surface: #18181e;
-    --surface-2: #1f1f27;
+    --bg: #141418;
+    --surface: #1c1c24;
+    --surface-2: #24242e;
     --text: #f0eff4;
     --muted: #9a9aa5;
     --border: rgba(240, 239, 244, 0.09);
@@ -50,6 +50,16 @@ body {
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   overflow: hidden;
   transition: background 0.3s ease;
+}
+
+/* Subtle gradient for dark mode so it's not flat black */
+[data-theme="dark"] body {
+  background: radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) body {
+    background: radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
+  }
 }
 
 #app {
@@ -1103,10 +1113,10 @@ body {
   content: '';
   position: absolute;
   top: 50%;
-  right: 100%;
+  left: 100%;
   width: 80px;
   height: 3px;
-  background: linear-gradient(to left, rgba(255, 220, 100, 0.9), transparent);
+  background: linear-gradient(to right, rgba(255, 220, 100, 0.9), transparent);
   border-radius: 3px;
   transform: translateY(-50%);
 }
@@ -1132,10 +1142,10 @@ body {
   content: '';
   position: absolute;
   top: 50%;
-  right: 100%;
+  left: 100%;
   width: 40px;
   height: 2px;
-  background: linear-gradient(to left, rgba(255, 200, 80, 0.8), transparent);
+  background: linear-gradient(to right, rgba(255, 200, 80, 0.8), transparent);
   border-radius: 2px;
   transform: translateY(-50%);
 }
@@ -1156,10 +1166,10 @@ body {
   content: '';
   position: absolute;
   top: 50%;
-  right: 100%;
+  left: 100%;
   width: 30px;
   height: 2px;
-  background: linear-gradient(to left, rgba(255, 200, 80, 0.9), transparent);
+  background: linear-gradient(to right, rgba(255, 200, 80, 0.9), transparent);
   border-radius: 2px;
   transform: translateY(-50%);
 }
@@ -1318,6 +1328,71 @@ body {
   --cy: calc(100% - 42px);
   touch-action: none;
 }
+
+/* ── Meditation Overlay ── */
+.meditasi-overlay {
+  position: fixed;
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  animation: rise 0.3s ease;
+}
+.meditasi-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+.meditasi-controls {
+  display: flex;
+  gap: 8px;
+}
+.meditasi-preset {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: #0a0a0c;
+  color: #f0eff4;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  opacity: 0.6;
+}
+.meditasi-preset.active {
+  opacity: 1;
+  background: rgba(124, 92, 255, 0.85);
+}
+.meditasi-btn {
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  background: #0a0a0c;
+  color: #f0eff4;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+.meditasi-btn:hover { background: #1a1a1e; transform: translateY(-1px); }
+.meditasi-btn:active { transform: scale(0.94); }
+.meditasi-close {
+  background: rgba(124, 92, 255, 0.85);
+  color: #fff;
+}
+.meditasi-close:hover { background: rgba(124, 92, 255, 1); }
 .radial-menu:not(.hidden) { pointer-events: auto; }
 
 /* Invisible drag layer to capture swipe-to-rotate */
@@ -1368,21 +1443,22 @@ body {
   color: #f0eff4;
 }
 
-/* radial positions: 8 items in a TOP semicircle, r=120px — rotated by --rot */
+/* radial positions: 9 items in a TOP semicircle, r=120px — rotated by --rot */
 .radial-menu:not(.hidden) .rm-btn {
   transform: translate(-50%, -50%) rotate(var(--rot)) var(--pos) scale(1);
   opacity: 1;
   pointer-events: auto;
 }
 
-.rm-btn[data-feature="chat"]       { --pos: translate(-113px, -41px);  transition-delay: 0.02s; }
-.rm-btn[data-feature="pomodoro"]   { --pos: translate(-92px, -77px);   transition-delay: 0.05s; }
-.rm-btn[data-feature="play"]       { --pos: translate(-60px, -104px);  transition-delay: 0.08s; }
-.rm-btn[data-feature="entertain"]  { --pos: translate(-21px, -118px);  transition-delay: 0.11s; }
-.rm-btn[data-feature="powers"]     { --pos: translate(21px, -118px);   transition-delay: 0.14s; }
-.rm-btn[data-feature="idletest"]   { --pos: translate(60px, -104px);   transition-delay: 0.17s; }
-.rm-btn[data-feature="music"]      { --pos: translate(92px, -77px);    transition-delay: 0.20s; }
-.rm-btn[data-feature="settings"]   { --pos: translate(113px, -41px);   transition-delay: 0.23s; }
+.rm-btn[data-feature="chat"]       { --pos: translate(-120px, 0px);    transition-delay: 0.02s; }
+.rm-btn[data-feature="pomodoro"]   { --pos: translate(-111px, -46px);   transition-delay: 0.05s; }
+.rm-btn[data-feature="play"]       { --pos: translate(-85px, -85px);    transition-delay: 0.08s; }
+.rm-btn[data-feature="entertain"]  { --pos: translate(-46px, -111px);   transition-delay: 0.11s; }
+.rm-btn[data-feature="powers"]     { --pos: translate(0px, -120px);     transition-delay: 0.14s; }
+.rm-btn[data-feature="idletest"]   { --pos: translate(46px, -111px);    transition-delay: 0.17s; }
+.rm-btn[data-feature="music"]      { --pos: translate(85px, -85px);     transition-delay: 0.20s; }
+.rm-btn[data-feature="settings"]   { --pos: translate(111px, -46px);    transition-delay: 0.23s; }
+.rm-btn[data-feature="meditasi"]   { --pos: translate(120px, 0px);      transition-delay: 0.26s; }
 
 .radial-menu:not(.hidden) .rm-btn:hover {
   transform: translate(-50%, -50%) rotate(var(--rot)) var(--pos) scale(1.08);

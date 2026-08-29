@@ -563,26 +563,26 @@ export class BlobCharacter {
 
   /* ── Timer dot-matrix morph: blob breaks into dots forming time digits ── */
 
-  // 3x5 dot matrix font for digits, 1x5 for colon
+  // 5x7 dot matrix font (standard LED display), 2x7 for colon
   static DOT_FONT = {
-    '0': ['111','101','101','101','111'],
-    '1': ['010','110','010','010','111'],
-    '2': ['111','001','111','100','111'],
-    '3': ['111','001','111','001','111'],
-    '4': ['101','101','111','001','001'],
-    '5': ['111','100','111','001','111'],
-    '6': ['111','100','111','101','111'],
-    '7': ['111','001','010','010','010'],
-    '8': ['111','101','111','101','111'],
-    '9': ['111','101','111','001','111'],
-    ':': ['0','1','0','1','0'],
+    '0': ['01110','10001','10011','10101','11001','10001','01110'],
+    '1': ['00100','01100','00100','00100','00100','00100','01110'],
+    '2': ['01110','10001','00001','00010','00100','01000','11111'],
+    '3': ['11111','00010','00100','00010','00001','10001','01110'],
+    '4': ['00010','00110','01010','10010','11111','00010','00010'],
+    '5': ['11111','10000','11110','00001','00001','10001','01110'],
+    '6': ['00110','01000','10000','11110','10001','10001','01110'],
+    '7': ['11111','00001','00010','00100','01000','01000','01000'],
+    '8': ['01110','10001','10001','01110','10001','10001','01110'],
+    '9': ['01110','10001','10001','01111','00001','00010','01100'],
+    ':': ['00','00','01','00','01','00','00'],
   };
 
   static computeDotPositions(timeStr) {
-    // Same scale for all screens — CSS handles desktop enlargement
-    const SP = 17;    // dot spacing (fits viewBox ±158)
-    const GAP = 7;    // gap between characters
-    const ROWS = 5;
+    // 5x7 font with smaller spacing — more dots but fits viewBox ±158
+    const SP = 11;    // dot spacing
+    const GAP = 5;    // gap between characters
+    const ROWS = 7;
     // Compute total width (single dot per pixel, clean dot matrix)
     let totalW = 0;
     for (const ch of timeStr) {
@@ -609,7 +609,7 @@ export class BlobCharacter {
   }
 
   static getTimerDotRadius() {
-    return 6.5;
+    return 4.5;
   }
 
   enterTimerMode() {
