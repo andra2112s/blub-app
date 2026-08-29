@@ -61,7 +61,16 @@ const els = {
   meditasiTimer: $('#meditasiTimer'),
   meditasiLabel: $('#meditasiLabel'),
   meditasiStart: $('#meditasiStart'),
-  meditasiClose: $('#meditasiClose')
+  meditasiClose: $('#meditasiClose'),
+  meditasiSetup: $('#meditasiSetup'),
+  meditasiActive: $('#meditasiActive'),
+  meditasiTimerActive: $('#meditasiTimerActive'),
+  meditasiBreathCircle: $('#meditasiBreathCircle'),
+  meditasiBreathText: $('#meditasiBreathText'),
+  meditasiGear: $('#meditasiGear'),
+  meditasiOpts: $('#meditasiOpts'),
+  meditasiPause: $('#meditasiPause'),
+  meditasiStop: $('#meditasiStop')
 };
 
 /* ── Ground shadow: proper shadow physics ── */
@@ -1522,28 +1531,29 @@ els.radialMenu.addEventListener('click', (e) => {
   else if (f === 'meditasi') { closeRadialMenu(); startMeditasi(); }
 });
 
-/* ── Meditasi Mode ── */
+/* ── Meditasi Mode — redesigned: calm, minimal ── */
 /*
   Flow:
-  1. Buka meditasi → pilih durasi (3/5/10/15m) + pilih suara bowl (Tibetan/Crystal/Japanese)
-  2. Klik "Mulai" → bowl berbunyi → 5 detik prep countdown ("Siap... 5,4,3,2,1")
-  3. Setelah 5 detik → timer mulai berjalan, label ganti "Tarik napas.../Hembuskan..."
-  4. Timer habis → bowl berbunyi lagi → "Selesai 🙏"
-  5. Klik "Jeda" saat running → pause. Klik "Lanjut" → resume (tanpa prep lagi)
-  6. Klik "Batal" saat prep → batalkan
-  7. Klik "Selesai" → keluar meditasi
+  1. Setup: timer + 4 preset + gear (bowl/guide hidden by default) + Mulai/Tutup
+  2. Mulai → bowl sound → 3s calm prep (no TTS counting, just "Menyiapkan...")
+  3. Active: breathing circle + timer only. No buttons except Jeda/Selesai
+  4. Breathing: visual circle expands/shrinks (4s in, 4s out). TTS only at start + halfway
+  5. Bowl at start + end only. No every-minute chime.
+  6. Jeda → pause. Selesai → exit.
 */
 let meditasiRunning = false;
 let meditasiPrepping = false;
 let meditasiInterval = null;
 let meditasiPrepTimer = null;
+let meditasiBreathRaf = null;
 let meditasiLeft = 0;
 let meditasiTotal = 0;
 let meditasiPresetMin = 5;
 let meditasiAudioCtx = null;
 let meditasiBowlType = 'tibetan';
-let meditasiGuided = true; // true = suara TTS, false = hening
+let meditasiGuided = true;
 let meditasiLastSpoken = '';
+let meditasiHalfwayNotified = false;
 
 const BOWL_SOUNDS = {
   tibetan:  { freqs: [196, 247, 330],       decay: 5, type: 'sine' },
@@ -1564,7 +1574,7 @@ function playBowlSound(bowlType) {
     osc.type = cfg.type;
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.15 / (i + 1), now + 0.02);
+    gain.gain.linearRampToValueAtTime(0.12 / (i + 1), now + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, now + cfg.decay + i);
     osc.connect(gain);
     gain.connect(ctx.destination);
@@ -1573,18 +1583,16 @@ function playBowlSound(bowlType) {
   });
 }
 
-/* ── Guided meditation voice (Indonesian TTS) ── */
 function speakGuided(text, opts = {}) {
   if (!meditasiGuided) return;
   if (!('speechSynthesis' in window)) return;
   try {
-    // Cancel any queued speech so instructions don't pile up
     if (opts.interrupt !== false) window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'id-ID';
-    u.rate = opts.rate || 0.85;
+    u.rate = opts.rate || 0.8;
     u.pitch = opts.pitch || 1.0;
-    u.volume = opts.volume ?? 0.9;
+    u.volume = opts.volume ?? 0.85;
     window.speechSynthesis.speak(u);
     meditasiLastSpoken = text;
   } catch {}
@@ -1599,7 +1607,52 @@ function stopGuided() {
 function meditasiRenderTimer() {
   const m = Math.floor(meditasiLeft / 60);
   const s = meditasiLeft % 60;
-  els.meditasiTimer.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  const str = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  if (els.meditasiTimer) els.meditasiTimer.textContent = str;
+  if (els.meditasiTimerActive) els.meditasiTimerActive.textContent = str;
+}
+
+/* Breathing circle animation — 8s cycle: 4s expand, 4s contract */
+function startBreathAnimation() {
+  const circle = els.meditasiBreathCircle;
+  const text = els.meditasiBreathText;
+  if (!circle) return;
+  const t0 = performance.now();
+  const animate = () => {
+    if (!meditasiRunning) return;
+    const t = (performance.now() - t0) / 1000;
+    const cycle = t % 8;
+    // 0-4s: expand (inhale), 4-8s: contract (exhale)
+    if (cycle < 4) {
+      const p = cycle / 4;
+      const scale = 1 + p * 0.6; // 1 → 1.6
+      circle.style.transform = `scale(${scale.toFixed(3)})`;
+      circle.style.opacity = (0.4 + p * 0.4).toFixed(2);
+      text.textContent = 'Tarik napas';
+    } else {
+      const p = (cycle - 4) / 4;
+      const scale = 1.6 - p * 0.6; // 1.6 → 1
+      circle.style.transform = `scale(${scale.toFixed(3)})`;
+      circle.style.opacity = (0.8 - p * 0.4).toFixed(2);
+      text.textContent = 'Hembuskan';
+    }
+    meditasiBreathRaf = requestAnimationFrame(animate);
+  };
+  animate();
+}
+
+function stopBreathAnimation() {
+  if (meditasiBreathRaf) { cancelAnimationFrame(meditasiBreathRaf); meditasiBreathRaf = null; }
+}
+
+function showMeditasiSetup() {
+  if (els.meditasiSetup) els.meditasiSetup.classList.remove('hidden');
+  if (els.meditasiActive) els.meditasiActive.classList.add('hidden');
+}
+
+function showMeditasiActive() {
+  if (els.meditasiSetup) els.meditasiSetup.classList.add('hidden');
+  if (els.meditasiActive) els.meditasiActive.classList.remove('hidden');
 }
 
 function startMeditasi() {
@@ -1608,11 +1661,13 @@ function startMeditasi() {
   hideLauncher();
   meditasiRunning = false;
   meditasiPrepping = false;
+  meditasiHalfwayNotified = false;
   meditasiLeft = meditasiPresetMin * 60;
   meditasiTotal = meditasiLeft;
   els.meditasiStart.textContent = 'Mulai';
-  els.meditasiLabel.textContent = 'Siap meditasi 🧘';
+  els.meditasiLabel.textContent = 'Pilih durasi, lalu mulai';
   meditasiRenderTimer();
+  showMeditasiSetup();
   // Highlight active preset
   document.querySelectorAll('.meditasi-preset').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.min) === meditasiPresetMin);
@@ -1620,6 +1675,10 @@ function startMeditasi() {
   // Highlight active bowl
   document.querySelectorAll('.meditasi-bowl-pick').forEach(b => {
     b.classList.toggle('active', b.dataset.bowl === meditasiBowlType);
+  });
+  // Highlight active guide
+  document.querySelectorAll('.meditasi-guide-pick').forEach(b => {
+    b.classList.toggle('active', (b.dataset.guide === 'suara') === meditasiGuided);
   });
   // Blob enters meditation: eyes closed, breathing, calm glow
   idleAnims.stop();
@@ -1630,41 +1689,36 @@ function meditasiTick() {
   if (meditasiLeft <= 0) {
     clearInterval(meditasiInterval);
     meditasiRunning = false;
-    els.meditasiStart.textContent = 'Mulai';
-    els.meditasiLabel.textContent = 'Selesai 🙏';
-    meditasiLeft = meditasiPresetMin * 60;
-    meditasiRenderTimer();
-    // Bowl berbunyi saat selesai
+    stopBreathAnimation();
+    // Bowl at end
     playBowlSound();
-    speakGuided('Meditasi selesai. Tarik napas dalam, buka mata perlahan. Terima kasih sudah meditasi bersamaku.');
+    speakGuided('Meditasi selesai. Tarik napas dalam, buka mata perlahan.');
     showBubble('Meditasi selesai 🙏', 3000);
+    // Return to setup after a moment
+    setTimeout(() => {
+      meditasiLeft = meditasiPresetMin * 60;
+      meditasiRenderTimer();
+      showMeditasiSetup();
+      els.meditasiStart.textContent = 'Mulai';
+      els.meditasiLabel.textContent = 'Selesai 🙏 mau lagi?';
+    }, 3000);
     return;
   }
   meditasiLeft--;
   meditasiRenderTimer();
-  // Breathing guidance — 8-detik cycle: 4s tarik, 4s hembus
-  const phase = meditasiLeft % 8;
-  if (phase === 0) {
-    els.meditasiLabel.textContent = 'Tarik napas... 🌬️';
-    speakGuided('Tarik napas perlahan', { rate: 0.8 });
-  }
-  else if (phase === 4) {
-    els.meditasiLabel.textContent = 'Hembuskan... 😮‍💨';
-    speakGuided('Hembuskan', { rate: 0.8 });
-  }
-  // Bowl setiap menit + pengingat lembut
-  if (meditasiLeft % 60 === 0 && meditasiLeft < meditasiTotal) {
-    playBowlSound();
-    if (meditasiLeft > 60) {
-      const minsLeft = Math.floor(meditasiLeft / 60);
-      speakGuided(`Tersisa ${minsLeft} menit. Tetap fokus pada napasmu.`);
-    }
+
+  // Halfway reminder — one gentle nudge only
+  if (!meditasiHalfwayNotified && meditasiLeft === Math.floor(meditasiTotal / 2)) {
+    meditasiHalfwayNotified = true;
+    const minsLeft = Math.floor(meditasiLeft / 60);
+    speakGuided(`Setengah perjalanan. Tersisa sekitar ${minsLeft} menit. Tetap fokus pada napasmu.`);
   }
 }
 
+// Start button — begins calm 3s prep, then active meditation
 els.meditasiStart.addEventListener('click', () => {
-  // Saat prep running → klik = batal
   if (meditasiPrepping) {
+    // Cancel prep
     clearInterval(meditasiPrepTimer);
     meditasiPrepping = false;
     els.meditasiStart.textContent = 'Mulai';
@@ -1674,61 +1728,84 @@ els.meditasiStart.addEventListener('click', () => {
     stopGuided();
     return;
   }
-  // Saat running → klik = jeda
-  if (meditasiRunning) {
-    clearInterval(meditasiInterval);
-    meditasiRunning = false;
-    els.meditasiStart.textContent = 'Lanjut';
-    els.meditasiLabel.textContent = 'Dijeda ⏸️';
-    stopGuided();
-    return;
-  }
-  // Saat idle → klik = mulai dengan 5 detik prep
+  if (meditasiRunning) return; // shouldn't happen, pause handles this
+
+  // Begin prep — calm, no counting
   meditasiPrepping = true;
-  let prepLeft = 5;
   els.meditasiStart.textContent = 'Batal';
-  els.meditasiLabel.textContent = `Siap... ${prepLeft}`;
-  // Bowl berbunyi saat mulai
+  els.meditasiLabel.textContent = 'Menyiapkan…';
   playBowlSound();
-  speakGuided('Mari kita mulai meditasi. Tutup mata, relaksasi badan.');
-  clearInterval(meditasiPrepTimer);
-  meditasiPrepTimer = setInterval(() => {
-    prepLeft--;
-    if (prepLeft <= 0) {
-      // Prep selesai → timer mulai
-      clearInterval(meditasiPrepTimer);
-      meditasiPrepping = false;
-      meditasiRunning = true;
-      els.meditasiStart.textContent = 'Jeda';
-      els.meditasiLabel.textContent = 'Tarik napas... 🌬️';
-      speakGuided('Mulai. Tarik napas perlahan.');
-      meditasiInterval = setInterval(meditasiTick, 1000);
-    } else {
-      els.meditasiLabel.textContent = `Siap... ${prepLeft}`;
-      if (prepLeft <= 3) speakGuided(String(prepLeft), { rate: 1.0 });
-    }
-  }, 1000);
+  speakGuided('Mari mulai meditasi. Tutup mata, rasakan napasmu.');
+
+  meditasiPrepTimer = setTimeout(() => {
+    meditasiPrepping = false;
+    meditasiRunning = true;
+    meditasiHalfwayNotified = false;
+    showMeditasiActive();
+    startBreathAnimation();
+    meditasiInterval = setInterval(meditasiTick, 1000);
+  }, 3000);
 });
 
-// Bowl type picker — klik untuk pilih suara bowl + preview
+// Pause button (active phase)
+if (els.meditasiPause) {
+  els.meditasiPause.addEventListener('click', () => {
+    if (meditasiRunning) {
+      clearInterval(meditasiInterval);
+      meditasiRunning = false;
+      stopBreathAnimation();
+      els.meditasiPause.textContent = 'Lanjut';
+      stopGuided();
+    } else if (meditasiLeft > 0) {
+      // Resume
+      meditasiRunning = true;
+      els.meditasiPause.textContent = 'Jeda';
+      startBreathAnimation();
+      meditasiInterval = setInterval(meditasiTick, 1000);
+    }
+  });
+}
+
+// Stop button (active phase) — return to setup
+if (els.meditasiStop) {
+  els.meditasiStop.addEventListener('click', () => {
+    clearInterval(meditasiInterval);
+    meditasiRunning = false;
+    meditasiPrepping = false;
+    stopBreathAnimation();
+    stopGuided();
+    meditasiLeft = meditasiPresetMin * 60;
+    meditasiRenderTimer();
+    showMeditasiSetup();
+    els.meditasiStart.textContent = 'Mulai';
+    els.meditasiLabel.textContent = 'Mau mulai lagi?';
+  });
+}
+
+// Gear toggle — show/hide bowl + guide options
+if (els.meditasiGear) {
+  els.meditasiGear.addEventListener('click', () => {
+    if (els.meditasiOpts) els.meditasiOpts.classList.toggle('hidden');
+  });
+}
+
+// Bowl type picker
 document.querySelectorAll('.meditasi-bowl-pick').forEach(btn => {
   btn.addEventListener('click', () => {
     meditasiBowlType = btn.dataset.bowl;
     document.querySelectorAll('.meditasi-bowl-pick').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    // Preview suara bowl yang dipilih
     playBowlSound();
   });
 });
 
-// Guide picker — pilih mode guided (suara TTS) atau hening
+// Guide picker
 document.querySelectorAll('.meditasi-guide-pick').forEach(btn => {
   btn.addEventListener('click', () => {
     meditasiGuided = (btn.dataset.guide === 'suara');
     document.querySelectorAll('.meditasi-guide-pick').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     if (!meditasiGuided) stopGuided();
-    else speakGuided('Mode guided aktif. Aku akan membimbing napasmu.');
   });
 });
 
@@ -1740,14 +1817,17 @@ document.querySelectorAll('.meditasi-preset').forEach(btn => {
     if (!meditasiRunning) {
       meditasiLeft = meditasiPresetMin * 60;
       meditasiTotal = meditasiLeft;
-      els.meditasiLabel.textContent = `${meditasiPresetMin}m siap mulai`;
+      meditasiRenderTimer();
+      els.meditasiLabel.textContent = `${meditasiPresetMin} menit siap`;
     }
   });
 });
 
+// Close (from setup phase)
 els.meditasiClose.addEventListener('click', () => {
   clearInterval(meditasiInterval);
   clearInterval(meditasiPrepTimer);
+  stopBreathAnimation();
   meditasiPrepping = false;
   meditasiRunning = false;
   els.meditasiOverlay.classList.add('hidden');

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v87';
+      var V='v88';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('blub.activeSw')===V)return;
@@ -192,26 +192,44 @@
 
         <!-- Meditation overlay -->
         <div id="meditasiOverlay" class="meditasi-overlay hidden">
-          <div class="meditasi-timer" id="meditasiTimer">5:00</div>
-          <div class="meditasi-label" id="meditasiLabel">Siap meditasi 🧘</div>
-          <div class="meditasi-controls">
-            <button class="meditasi-preset" data-min="3">3m</button>
-            <button class="meditasi-preset" data-min="5">5m</button>
-            <button class="meditasi-preset" data-min="10">10m</button>
-            <button class="meditasi-preset" data-min="15">15m</button>
+          <!-- Setup phase: minimal options -->
+          <div class="meditasi-setup" id="meditasiSetup">
+            <div class="meditasi-timer" id="meditasiTimer">5:00</div>
+            <div class="meditasi-label" id="meditasiLabel">Pilih durasi, lalu mulai</div>
+            <div class="meditasi-controls">
+              <button class="meditasi-preset" data-min="3">3m</button>
+              <button class="meditasi-preset active" data-min="5">5m</button>
+              <button class="meditasi-preset" data-min="10">10m</button>
+              <button class="meditasi-preset" data-min="15">15m</button>
+            </div>
+            <button class="meditasi-gear" id="meditasiGear" title="Pengaturan">⚙</button>
+            <div class="meditasi-opts hidden" id="meditasiOpts">
+              <div class="meditasi-controls">
+                <button class="meditasi-bowl-pick active" data-bowl="tibetan">🥣 Tibetan</button>
+                <button class="meditasi-bowl-pick" data-bowl="crystal">💎 Crystal</button>
+                <button class="meditasi-bowl-pick" data-bowl="japanese">🪷 Japanese</button>
+              </div>
+              <div class="meditasi-controls">
+                <button class="meditasi-guide-pick active" data-guide="suara">🔊 Guided</button>
+                <button class="meditasi-guide-pick" data-guide="diam">🔇 Hening</button>
+              </div>
+            </div>
+            <div class="meditasi-controls">
+              <button class="meditasi-btn" id="meditasiStart">Mulai</button>
+              <button class="meditasi-btn meditasi-close" id="meditasiClose">Tutup</button>
+            </div>
           </div>
-          <div class="meditasi-controls">
-            <button class="meditasi-bowl-pick active" data-bowl="tibetan">🥣 Tibetan</button>
-            <button class="meditasi-bowl-pick" data-bowl="crystal">💎 Crystal</button>
-            <button class="meditasi-bowl-pick" data-bowl="japanese">🪷 Japanese</button>
-          </div>
-          <div class="meditasi-controls">
-            <button class="meditasi-guide-pick active" data-guide="suara">🔊 Guided Suara</button>
-            <button class="meditasi-guide-pick" data-guide="diam">🔇 Tanpa Suara</button>
-          </div>
-          <div class="meditasi-controls">
-            <button class="meditasi-btn" id="meditasiStart">Mulai</button>
-            <button class="meditasi-btn meditasi-close" id="meditasiClose">Selesai</button>
+          <!-- Active phase: only timer + breathing circle -->
+          <div class="meditasi-active hidden" id="meditasiActive">
+            <div class="meditasi-breath" id="meditasiBreath">
+              <div class="meditasi-breath-circle" id="meditasiBreathCircle"></div>
+              <span class="meditasi-breath-text" id="meditasiBreathText">Tarik napas</span>
+            </div>
+            <div class="meditasi-timer" id="meditasiTimerActive">5:00</div>
+            <div class="meditasi-controls">
+              <button class="meditasi-btn" id="meditasiPause">Jeda</button>
+              <button class="meditasi-btn meditasi-close" id="meditasiStop">Selesai</button>
+            </div>
           </div>
         </div>
 
