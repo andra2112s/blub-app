@@ -148,7 +148,7 @@ export class BlobCharacter {
     this.mouthEl = el('path', { fill: 'none', 'stroke-width': '3.5', 'stroke-linecap': 'round' });
     this.gFront = el('g');
     this.dotPool = [];
-    this._glowColor = '#ffffff';
+    this._glowColor = localStorage.getItem('Mochi.glowColor') || '#ffffff';
 
     this.gEyes.append(...this.eyeEls, this.mouthEl);
     svg.append(this.gBack, this.bodyEl, this.gEyes, this.gFront);
@@ -1589,7 +1589,15 @@ export class BlobCharacter {
 
   setGlowColor(colorId) {
     const c = COLOR_BY_ID.get(colorId);
-    if (c) this._glowColor = c.hex;
+    if (c) {
+      this._glowColor = c.hex;
+      localStorage.setItem('Mochi.glowColor', c.hex);
+    }
+  }
+
+  resetGlowColor() {
+    this._glowColor = '#ffffff';
+    localStorage.removeItem('Mochi.glowColor');
   }
 
   playDizzy(duration = 2500) {

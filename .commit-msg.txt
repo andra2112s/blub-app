@@ -1,12 +1,10 @@
-fix: powers radial layout + feat: ganti warna sinar
+fix: persist warna sinar agar tidak balik ke awal
 
-- Perbaiki posisi tombol powers radial jadi setengah lingkaran r=150px
-dengan 7 item (Burst, Komet, Orbit, Swirl, Exclaim, Sinar, Notify).
-- Tambah fitur ganti warna sinar: blob.setGlowColor(colorId) dan
-chat trigger "sinar <warna>" (contoh: "sinar merah").
-- Efek glow sekarang pakai warna yang dipilih (default putih).
-- Update POWER_HELP.
-Cache v92 -> v93.
+- Simpan Mochi.glowColor di localStorage saat setGlowColor.
+- Inisialisasi _glowColor dari localStorage saat blob dibuat.
+- Tambah chat command "warna sinar <warna>" untuk mengatur warna
+  sinar tanpa langsung memicu animasi.
+- Commit message: fix agar warna sinar tidak balik lagi ke putih.
 
 Generated with [Devin](https://devin.ai)
 

@@ -406,6 +406,13 @@ export function createBrain() {
       if (colorId) return { text: `WAAAAH! Sinar ${word} ✨`, state: 'excite', effect: 'glow', colorId };
     }
 
+    const glowSet = t.match(/warna\s+sinar\s+(hitam|coklat|merah|oranye|kuning|hijau|toska|biru|ungu|pink|merah muda|abu-?abu|abu|putih|krem)/);
+    if (glowSet) {
+      const word = glowSet[1].replace(/-?abu$/, 'abu');
+      const colorId = COLOR_WORDS[word];
+      if (colorId) return { text: `Oke, warna sinar diatur jadi ${word}. Coba ketik "bersinar!" ✨`, state: 'happy', colorId, effect: 'glowSet' };
+    }
+
     if (/(ledak|meledak|pecah|boom|bledug|kaboom)/.test(t)) return { text: 'KABOOM! 💥 Tenang, badanku nyatu lagi kok.', state: 'excite', effect: 'burst' };
     if (/(\bkomet\b|terbang|nyeberang|fly)/.test(t)) return { text: 'Zuuuhhh! ☄️ Sampai jumpa di ujung langit!', state: 'excite', effect: 'comet' };
     if (/(orbit|planet|satelit|matahari)/.test(t)) return { text: 'Mode planet aktif 🪐 Mataku muter ngelilingi galaksi sendiri.', state: 'excite', effect: 'orbit' };

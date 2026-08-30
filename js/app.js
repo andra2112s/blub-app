@@ -408,19 +408,21 @@ async function send(rawText) {
   showTyping(false);
   addMsg('bot', res.text);
   speak(res.text);
-  if (res.colorId && res.effect !== 'glow') blob.setColorById(res.colorId);
+  if (res.colorId && res.effect !== 'glow' && res.effect !== 'glowSet') blob.setColorById(res.colorId);
 
   // Detect chat sentiment for emotion engine
   const sentiment = detectSentiment(res.state);
   emotion.setChatSentiment(sentiment);
 
   if (res.effect) {
-    const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!', glow:'✨ Sinar!' };
+    const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!', glow:'✨ Sinar!', glowSet:'✨ Warna Sinar' };
     showBubble(fxLabels[res.effect] || '⚡ Power!', 2200);
     console.info('[Mochi] triggerState', res.effect);
     emotion.markInteraction('power');
     if (res.effect === 'peekaboo') {
       blob.triggerPeekaboo();
+    } else if (res.effect === 'glowSet') {
+      if (res.colorId) { blob.setGlowColor(res.colorId); showBubble(`Warna sinar diganti ✨`, 1800); }
     } else if (res.effect === 'glow') {
       if (res.colorId) blob.setGlowColor(res.colorId);
       blob.triggerState('glow');
