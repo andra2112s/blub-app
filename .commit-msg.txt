@@ -1,8 +1,10 @@
-chore: hapus fitur tilt HP (deviceorientation) di mobile
+fix: mapping tombol ganti warna (ID Indonesia -> ID engine)
 
-Fitur mata blob mengikuti gerakan HP (deviceorientation) dihapus
-termasuk tombol permission iOS. Pointer move/down tetap aktif.
-Cache v89 -> v90.
+Tombol Jadi Merah/Biru/Hijau/Ungu/Kuning di play panel sekarang
+memanggil ID warna yang benar sesuai engine (rouge, bleu, vert,
+violet, ambre). Sebelumnya pakai ID bahasa Inggris yang tidak
+ada, jadi setColorById() fail silently.
+Cache v90 -> v91.
 
 Generated with [Devin](https://devin.ai)
 

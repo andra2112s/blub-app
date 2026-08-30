@@ -2100,7 +2100,7 @@ document.querySelectorAll('[data-poke]').forEach((btn) => {
 });
 document.querySelectorAll('[data-color]').forEach((btn) => {
   btn.addEventListener('click', () => {
-    const map = { merah:'red', biru:'blue', hijau:'green', ungu:'purple', kuning:'yellow' };
+    const map = { merah:'rouge', biru:'bleu', hijau:'vert', ungu:'violet', kuning:'ambre' };
     const id = map[btn.dataset.color] || btn.dataset.color;
     blob.setColorById(id);
     showBubble(`Warna ${btn.dataset.color}! ✨`, 2000);
