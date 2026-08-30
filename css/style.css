@@ -1673,13 +1673,14 @@ body {
   pointer-events: auto;
 }
 
-/* ── Powers Radial: 6 items, top semicircle r=130px ── */
-#powersRadial .srm-btn:nth-child(2) { --pos: translate(-130px, 0px); transition-delay: 0.02s; }
-#powersRadial .srm-btn:nth-child(3) { --pos: translate(-105px, -76px); transition-delay: 0.06s; }
-#powersRadial .srm-btn:nth-child(4) { --pos: translate(-40px, -124px); transition-delay: 0.10s; }
-#powersRadial .srm-btn:nth-child(5) { --pos: translate(40px, -124px); transition-delay: 0.14s; }
-#powersRadial .srm-btn:nth-child(6) { --pos: translate(105px, -76px); transition-delay: 0.18s; }
-#powersRadial .srm-btn:nth-child(7) { --pos: translate(130px, 0px); transition-delay: 0.22s; }
+/* ── Powers Radial: 7 items, top semicircle r=150px ── */
+#powersRadial .srm-btn:nth-child(2) { --pos: translate(-150px, 0px); transition-delay: 0.02s; }
+#powersRadial .srm-btn:nth-child(3) { --pos: translate(-130px, -75px); transition-delay: 0.06s; }
+#powersRadial .srm-btn:nth-child(4) { --pos: translate(-75px, -130px); transition-delay: 0.10s; }
+#powersRadial .srm-btn:nth-child(5) { --pos: translate(0px, -150px); transition-delay: 0.14s; }
+#powersRadial .srm-btn:nth-child(6) { --pos: translate(75px, -130px); transition-delay: 0.18s; }
+#powersRadial .srm-btn:nth-child(7) { --pos: translate(130px, -75px); transition-delay: 0.22s; }
+#powersRadial .srm-btn:nth-child(8) { --pos: translate(150px, 0px); transition-delay: 0.26s; }
 
 /* ── Idle Radial: 20 items, top semicircle r=150px ── */
 #idleRadial .srm-btn:nth-child(2)  { --pos: translate(-150px, 0px); transition-delay: 0.01s; }

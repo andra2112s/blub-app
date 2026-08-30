@@ -22,7 +22,7 @@ const COLOR_WORDS = {
   putih: 'creme', krem: 'creme'
 };
 
-const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "bersinar!" ✨\n• "jadi biru / merah / ungu…" 🎨`;
+const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "bersinar!" ✨\n• "sinar merah / biru / ungu…" ✨🎨\n• "jadi biru / merah / ungu…" 🎨`;
 
 function load(key, fallback) {
   try {
@@ -397,6 +397,13 @@ export function createBrain() {
       const word = colorWord[3].replace(/-?abu$/, 'abu');
       const colorId = COLOR_WORDS[word];
       if (colorId) return { text: `Presto! Warna ${word} untuk ${nameRef} ✨`, state: 'excite', colorId };
+    }
+
+    const glowColor = t.match(/(sinar|bersinar)\s+(warna\s+)?(hitam|coklat|merah|oranye|kuning|hijau|toska|biru|ungu|pink|merah muda|abu-?abu|abu|putih|krem)/);
+    if (glowColor) {
+      const word = glowColor[3].replace(/-?abu$/, 'abu');
+      const colorId = COLOR_WORDS[word];
+      if (colorId) return { text: `WAAAAH! Sinar ${word} ✨`, state: 'excite', effect: 'glow', colorId };
     }
 
     if (/(ledak|meledak|pecah|boom|bledug|kaboom)/.test(t)) return { text: 'KABOOM! 💥 Tenang, badanku nyatu lagi kok.', state: 'excite', effect: 'burst' };

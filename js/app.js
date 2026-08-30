@@ -408,7 +408,7 @@ async function send(rawText) {
   showTyping(false);
   addMsg('bot', res.text);
   speak(res.text);
-  if (res.colorId) blob.setColorById(res.colorId);
+  if (res.colorId && res.effect !== 'glow') blob.setColorById(res.colorId);
 
   // Detect chat sentiment for emotion engine
   const sentiment = detectSentiment(res.state);
@@ -421,6 +421,9 @@ async function send(rawText) {
     emotion.markInteraction('power');
     if (res.effect === 'peekaboo') {
       blob.triggerPeekaboo();
+    } else if (res.effect === 'glow') {
+      if (res.colorId) blob.setGlowColor(res.colorId);
+      blob.triggerState('glow');
     } else {
       blob.triggerState(res.effect);
     }

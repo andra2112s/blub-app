@@ -148,6 +148,7 @@ export class BlobCharacter {
     this.mouthEl = el('path', { fill: 'none', 'stroke-width': '3.5', 'stroke-linecap': 'round' });
     this.gFront = el('g');
     this.dotPool = [];
+    this._glowColor = '#ffffff';
 
     this.gEyes.append(...this.eyeEls, this.mouthEl);
     svg.append(this.gBack, this.bodyEl, this.gEyes, this.gFront);
@@ -1077,15 +1078,23 @@ export class BlobCharacter {
     this._glowActive = true;
     if (stage) stage.classList.add('power', 'glow');
 
+    const c = this._glowColor;
+    const rgb = c.replace('#', '');
+    const r = parseInt(rgb.slice(0, 2), 16);
+    const g = parseInt(rgb.slice(2, 4), 16);
+    const b = parseInt(rgb.slice(4, 6), 16);
+
     const flash = document.createElement('div');
     flash.className = 'power-flash glow';
+    flash.style.background = `radial-gradient(circle at center, rgba(${r},${g},${b},0.85), rgba(255,255,255,0.35) 40%, transparent 70%)`;
+    flash.style.animation = 'flashBang 1.2s ease-out forwards';
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 1200);
 
     const origFill = this.bodyEl.getAttribute('fill') || '#0a0a0c';
-    this.bodyEl.setAttribute('fill', '#ffffff');
+    this.bodyEl.setAttribute('fill', c);
     this.svg.style.transition = 'filter 0.4s ease, transform 0.4s ease';
-    this.svg.style.filter = 'brightness(2.5) drop-shadow(0 0 45px rgba(255,255,255,0.9))';
+    this.svg.style.filter = `brightness(2.5) drop-shadow(0 0 45px ${c})`;
     this.svg.style.transform = 'scale(1.1)';
 
     const rayCount = 12;
@@ -1096,7 +1105,7 @@ export class BlobCharacter {
         x1: '0', y1: '0',
         x2: (Math.cos(a) * 160).toFixed(1),
         y2: (Math.sin(a) * 160).toFixed(1),
-        stroke: '#ffffff', 'stroke-width': '5',
+        stroke: c, 'stroke-width': '5',
         'stroke-linecap': 'round', opacity: '0.85'
       });
       this.gBack.append(line);
@@ -1576,6 +1585,11 @@ export class BlobCharacter {
       this.svg.style.filter = '';
       this.svg.style.transform = '';
     }, 800);
+  }
+
+  setGlowColor(colorId) {
+    const c = COLOR_BY_ID.get(colorId);
+    if (c) this._glowColor = c.hex;
   }
 
   playDizzy(duration = 2500) {
