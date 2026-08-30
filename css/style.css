@@ -540,6 +540,7 @@ body {
 .power-flash.swirl  { background: radial-gradient(circle at center, rgba(120,80,255,0.4), transparent 65%); }
 .power-flash.exclaim{ background: radial-gradient(circle at center, rgba(255,255,100,0.5), transparent 50%); }
 .power-flash.notify { background: radial-gradient(circle at center, rgba(100,255,180,0.4), transparent 60%); }
+.power-flash.glow  { background: radial-gradient(circle at center, rgba(255,255,255,0.85), rgba(255,255,200,0.4) 35%, transparent 70%); animation: flashBang 1.2s ease-out forwards; }
 
 /* ── Burst Shockwave Ring ── */
 .burst-shockwave {

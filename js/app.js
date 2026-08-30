@@ -415,7 +415,7 @@ async function send(rawText) {
   emotion.setChatSentiment(sentiment);
 
   if (res.effect) {
-    const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!' };
+    const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!', glow:'✨ Sinar!' };
     showBubble(fxLabels[res.effect] || '⚡ Power!', 2200);
     console.info('[Mochi] triggerState', res.effect);
     emotion.markInteraction('power');

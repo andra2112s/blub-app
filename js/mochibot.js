@@ -24,7 +24,8 @@ const FX_HOLD = {
   orbit: 3200,
   swirl: 3400,
   exclaim: 2000,
-  notify: 2600
+  notify: 2600,
+  glow: 4000
 };
 
 export const SHAPES_INFO = [
@@ -934,11 +935,15 @@ export class BlobCharacter {
   }
 
   triggerState(fx) {
-    if (!STATE_BY_ID.has(fx)) return;
     clearTimeout(this.holdTimer);
     clearTimeout(this.fxTimer);
     this.mood = 'idle';
     const stage = this.svg.closest('.stage');
+
+    if (fx === 'glow') {
+      this._glow(stage);
+      return;
+    }
 
     if (fx === 'burst') {
       this._shatterBurst(stage);
@@ -949,6 +954,8 @@ export class BlobCharacter {
       this._orbitEyes(stage);
       return;
     }
+
+    if (!STATE_BY_ID.has(fx)) return;
 
     if (stage) stage.classList.add('power');
     this.engine.setState(fx, nowSec());
@@ -1063,6 +1070,77 @@ export class BlobCharacter {
     this.fxTimer = setTimeout(() => {
       if (rafId) cancelAnimationFrame(rafId);
     }, ORBIT_DUR + 100);
+  }
+
+  _glow(stage) {
+    const GLOW_DUR = 4000;
+    this._glowActive = true;
+    if (stage) stage.classList.add('power', 'glow');
+
+    const flash = document.createElement('div');
+    flash.className = 'power-flash glow';
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 1200);
+
+    const origFill = this.bodyEl.getAttribute('fill') || '#0a0a0c';
+    this.bodyEl.setAttribute('fill', '#ffffff');
+    this.svg.style.transition = 'filter 0.4s ease, transform 0.4s ease';
+    this.svg.style.filter = 'brightness(2.5) drop-shadow(0 0 45px rgba(255,255,255,0.9))';
+    this.svg.style.transform = 'scale(1.1)';
+
+    const rayCount = 12;
+    const rays = [];
+    for (let i = 0; i < rayCount; i++) {
+      const a = (Math.PI * 2 * i) / rayCount;
+      const line = el('line', {
+        x1: '0', y1: '0',
+        x2: (Math.cos(a) * 160).toFixed(1),
+        y2: (Math.sin(a) * 160).toFixed(1),
+        stroke: '#ffffff', 'stroke-width': '5',
+        'stroke-linecap': 'round', opacity: '0.85'
+      });
+      this.gBack.append(line);
+      rays.push(line);
+    }
+
+    const t0 = performance.now();
+    const animate = () => {
+      if (!this._glowActive) return;
+      const now = performance.now();
+      const p = (now - t0) / GLOW_DUR;
+      if (p >= 1) {
+        this._glowActive = false;
+        rays.forEach((r) => r.remove());
+        this.bodyEl.setAttribute('fill', origFill);
+        this.svg.style.transition = 'filter 0.6s ease, transform 0.6s ease';
+        this.svg.style.filter = 'drop-shadow(0 0 6px rgba(124,92,255,0.15))';
+        this.svg.style.transform = 'translate(0px, 0px) rotate(0deg) scale(1)';
+        if (stage) stage.classList.remove('power', 'glow');
+        this._fxCleanupTimer = setTimeout(() => {
+          this.svg.style.transition = '';
+          this.svg.style.filter = '';
+          this.svg.style.transform = '';
+        }, 650);
+        return;
+      }
+      const pulse = 0.5 + 0.5 * Math.sin(p * Math.PI * 8);
+      const grow = 1 + p * 0.6;
+      rays.forEach((r, i) => {
+        const a = (Math.PI * 2 * i) / rayCount + p * Math.PI;
+        const r1 = 70 + pulse * 20;
+        const r2 = (150 + p * 100) * grow;
+        r.setAttribute('x1', (Math.cos(a) * r1).toFixed(1));
+        r.setAttribute('y1', (Math.sin(a) * r1).toFixed(1));
+        r.setAttribute('x2', (Math.cos(a) * r2).toFixed(1));
+        r.setAttribute('y2', (Math.sin(a) * r2).toFixed(1));
+        r.setAttribute('stroke-width', (3 + pulse * 5).toFixed(1));
+        r.setAttribute('opacity', (0.9 - p * 0.6).toFixed(2));
+      });
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+
+    this.fxTimer = setTimeout(() => { this._glowActive = false; }, GLOW_DUR);
   }
 
   _shatterBurst(stage) {

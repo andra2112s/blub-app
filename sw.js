@@ -1,4 +1,4 @@
-﻿const CACHE = 'Mochi-v91';
+﻿const CACHE = 'Mochi-v92';
 const ASSETS = [
   './',
   './index.html',

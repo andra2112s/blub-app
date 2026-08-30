@@ -22,7 +22,7 @@ const COLOR_WORDS = {
   putih: 'creme', krem: 'creme'
 };
 
-const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "jadi biru / merah / ungu…" 🎨`;
+const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "bersinar!" ✨\n• "jadi biru / merah / ungu…" 🎨`;
 
 function load(key, fallback) {
   try {
@@ -405,6 +405,7 @@ export function createBrain() {
     if (/(pusar|pusing|hipnotis|mabok)/.test(t)) return { text: 'Stare at the spiral… you are getting sleepy… 🌀', state: 'excite', effect: 'swirl' };
     if (/(wih|tanda seru|\bexclaim\b|wow)/.test(t)) return { text: 'WIH INDAH BANGET!!! ❗', state: 'excite', effect: 'exclaim' };
     if (/(lonceng|notif|bel sekolah)/.test(t)) return { text: 'Ting ting! 🔔 Ada pengumuman: kamu hebat.', state: 'excite', effect: 'notify' };
+    if (/(sinar|bersinar|cahaya|terang|glow|flash)/.test(t)) return { text: 'WAAAAH! ✨ Sekarang aku cahaya!', state: 'excite', effect: 'glow' };
     if (/(ciluk\s?ba|peek[\s-]?a[\s-]?boo|sembunyi)/.test(t)) return { text: 'Ciluk.. baa! 🫣 Hehe, ketahuan!', state: 'excite', effect: 'peekaboo' };
 
     if (/mulai pomodoro/.test(t)) return { text: 'Siap! ⏱️ Mulai fokus 25 menit… aku angkat bendera kuning dulu ya. Ketik "rehat" kalau sudah waktunya istirahat!', state: 'excite', effect: 'notify' };
