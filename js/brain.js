@@ -1,5 +1,5 @@
-﻿const MEM_KEY = 'blub.memory';
-const HIST_KEY = 'blub.history';
+﻿const MEM_KEY = 'Mochi.memory';
+const HIST_KEY = 'Mochi.history';
 
 let PERSONA = detectPersona();
 
@@ -48,7 +48,7 @@ export function createBrain() {
   };
   const clearHist = () => { history = []; localStorage.removeItem(HIST_KEY); };
 
-  const getSettings = () => load('blub.settings', { url: '', key: '', model: '', sys: '' });
+  const getSettings = () => load('Mochi.settings', { url: '', key: '', model: '', sys: '' });
 
   function resolveApiConfig() {
     const cfg = getSettings();

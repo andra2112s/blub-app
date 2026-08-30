@@ -1,10 +1,10 @@
-const CACHE = 'blub-v88';
+﻿const CACHE = 'Mochi-v89';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
   './js/bloub-engine.js',
-  './js/blubbot.js',
+  './js/mochibot.js',
   './js/brain.js',
   './js/app.js',
   './manifest.webmanifest',

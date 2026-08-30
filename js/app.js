@@ -1,4 +1,4 @@
-import { BlobCharacter, SHAPES_INFO, shapePreviewPath, startIdleAnimations } from './blubbot.js';
+﻿import { BlobCharacter, SHAPES_INFO, shapePreviewPath, startIdleAnimations } from './mochibot.js';
 import { createBrain, PERSONA, setPersona } from './brain.js';
 import { createMusicDancer } from './music.js';
 
@@ -122,14 +122,14 @@ const store = {
   del: (k) => localStorage.removeItem(k)
 };
 
-let muted = store.get('blub.muted', '0') === '1';
+let muted = store.get('Mochi.muted', '0') === '1';
 let ttsVoice = null;
 let recognition = null;
 let deferredPrompt = null;
 
 const brain = createBrain();
 
-const savedPersona = store.get('blub.persona', '');
+const savedPersona = store.get('Mochi.persona', '');
 if (savedPersona) setPersona(savedPersona);
 
 function playPop() {
@@ -240,7 +240,7 @@ let mimoLoading = false;
 
 function getTtsConfig() {
   try {
-    const cfg = JSON.parse(store.get('blub.settings', '{}'));
+    const cfg = JSON.parse(store.get('Mochi.settings', '{}'));
     return {
       enabled: !!cfg.ttsEnabled,
       key: cfg.ttsKey || '',
@@ -417,7 +417,7 @@ async function send(rawText) {
   if (res.effect) {
     const fxLabels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!', peekaboo:'🫣 Peek-a-boo!' };
     showBubble(fxLabels[res.effect] || '⚡ Power!', 2200);
-    console.info('[blub] triggerState', res.effect);
+    console.info('[Mochi] triggerState', res.effect);
     emotion.markInteraction('power');
     if (res.effect === 'peekaboo') {
       blob.triggerPeekaboo();
@@ -776,7 +776,7 @@ function initSound() {
   render();
   els.btnSound.addEventListener('click', () => {
     muted = !muted;
-    store.set('blub.muted', muted ? '1' : '0');
+    store.set('Mochi.muted', muted ? '1' : '0');
     if (muted) { speechSynthesis?.cancel(); stopMiMo(); }
     render();
     toast(muted ? 'Suara dimatikan' : 'Suara dinyalakan');
@@ -788,14 +788,14 @@ function initSound() {
 }
 
 function initTheme() {
-  const saved = store.get('blub.theme', '');
+  const saved = store.get('Mochi.theme', '');
   if (saved) document.documentElement.dataset.theme = saved;
 }
 
 function initSettings() {
   const defaults = { url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
   const open = () => {
-    const cfg = { ...defaults, ...JSON.parse(store.get('blub.settings', '{}')) };
+    const cfg = { ...defaults, ...JSON.parse(store.get('Mochi.settings', '{}')) };
     els.setUrl.value = cfg.url || '';
     els.setKey.value = cfg.key || '';
     els.setModel.value = cfg.model || '';
@@ -808,7 +808,7 @@ function initSettings() {
   els.btnSettings.addEventListener('click', open);
   els.setSave.addEventListener('click', () => {
     store.set(
-      'blub.settings',
+      'Mochi.settings',
       JSON.stringify({
         url: els.setUrl.value.trim(),
         key: els.setKey.value.trim(),
@@ -881,14 +881,14 @@ function toast(msg) {
 
 function restoreChat() {
   try {
-    const hist = JSON.parse(localStorage.getItem('blub.history') || '[]').slice(-20);
+    const hist = JSON.parse(localStorage.getItem('Mochi.history') || '[]').slice(-20);
     for (const m of hist) addMsg(m.role === 'user' ? 'user' : 'bot', m.content);
   } catch {}
 }
 
 function greet(forceNew = false) {
   if (!isOnboarded()) return;
-  const visited = store.get('blub.visited', '') === String(new Date().toDateString());
+  const visited = store.get('Mochi.visited', '') === String(new Date().toDateString());
   const mem = brain.memory();
   const namePart = mem.name ? `, ${mem.name}` : '';
   if (forceNew || !visited) {
@@ -902,7 +902,7 @@ function greet(forceNew = false) {
       showBubble(mem.name ? 'Balik lagi!' : 'Halo!');
       blob.setState('happy', { holdMs: 2000 });
     }, 700);
-    store.set('blub.visited', String(new Date().toDateString()));
+    store.set('Mochi.visited', String(new Date().toDateString()));
   } else {
     showBubble(`${PERSONA}~ kamu balik!`);
   }
@@ -914,7 +914,7 @@ function registerSW() {
   }
 }
 
-const isOnboarded = () => store.get('blub.onboarded2', '0') === '1';
+const isOnboarded = () => store.get('Mochi.onboarded2', '0') === '1';
 
 const obLabels = ['Mulai', 'Lanjut', 'Mulai Ngobrol! 🎉'];
 let obStep = 0;
@@ -942,7 +942,7 @@ function obBuildShapeGrid() {
       btn.classList.add('sel');
       blob.setShape(id);
       playPop();
-      store.set('blub.shape', id);
+      store.set('Mochi.shape', id);
     });
     els.shapeGrid.appendChild(btn);
   }
@@ -951,7 +951,7 @@ function obBuildShapeGrid() {
 function obFinish() {
   const name = els.obName.value.trim();
   if (name) brain.setName(name);
-  store.set('blub.onboarded2', '1');
+  store.set('Mochi.onboarded2', '1');
   els.obDlg.close();
   const mem = brain.memory();
   setTimeout(() => {
@@ -984,13 +984,13 @@ function initOnboarding() {
     }
   });
   els.obSkip.addEventListener('click', () => {
-    store.set('blub.onboarded2', '1');
+    store.set('Mochi.onboarded2', '1');
     els.obDlg.close();
   });
   document.querySelectorAll('[data-persona]').forEach((btn) => {
     btn.addEventListener('click', () => {
       setPersona(btn.dataset.persona);
-      store.set('blub.persona', btn.dataset.persona);
+      store.set('Mochi.persona', btn.dataset.persona);
       applyPersonaName();
       playPop();
     });
@@ -1012,7 +1012,7 @@ function initOnboarding() {
 }
 
 const blob = new BlobCharacter(els.svg, {
-  shape: store.get('blub.shape', 'cercle'),
+  shape: store.get('Mochi.shape', 'cercle'),
   onPokeSound: playPop,
   onQuip: () => {
     if (Math.random() < 0.7) showBubble(brain.randomQuip(), 1800);
@@ -2386,7 +2386,7 @@ registerSW();
 scheduleIdle();
 emotion.init();
 
-console.info('[blub] build', APP_VERSION, '| persona:', PERSONA);
+console.info('[Mochi] build', APP_VERSION, '| persona:', PERSONA);
 applyPersonaName();
 injectManifest();
 // cache heal handled by inline script in index.html (runs before any cached JS)

@@ -1,4 +1,4 @@
-import {
+﻿import {
   BotEngine,
   STATE_BY_ID,
   SHAPE_BY_ID,
@@ -236,7 +236,7 @@ export class BlobCharacter {
     try {
       frame = this.engine.sample(now);
     } catch (err) {
-      console.error('[blub] engine error', err);
+      console.error('[Mochi] engine error', err);
       requestAnimationFrame(this._raf);
       return;
     }

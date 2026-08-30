@@ -1,34 +1,34 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="id" data-theme="light">
   <head>
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v88';
+      var V='v89';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
-        if(localStorage.getItem('blub.activeSw')===V)return;
-        localStorage.setItem('blub.activeSw',V);
+        if(localStorage.getItem('Mochi.activeSw')===V)return;
+        localStorage.setItem('Mochi.activeSw',V);
         navigator.serviceWorker.getRegistrations().then(function(r){
           return Promise.all(r.map(function(x){return x.unregister()}));
         }).then(function(){
           return caches.keys();
         }).then(function(k){
-          return Promise.all(k.filter(function(n){return n.indexOf('blub-')===0}).map(function(n){return caches.delete(n)}));
+          return Promise.all(k.filter(function(n){return n.indexOf('Mochi-')===0}).map(function(n){return caches.delete(n)}));
         }).then(function(){location.reload()});
       }catch(e){}
     })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Blub — Teman AI Interaktif</title>
-    <meta name="description" content="Blub adalah avatar blob animasi yang bisa diajak ngobrol, merespons sentuhan, dan menemanimu. Install di HP maupun PC." />
+    <title>Mochi — Teman AI Interaktif</title>
+    <meta name="description" content="Mochi adalah avatar blob animasi yang bisa diajak ngobrol, merespons sentuhan, dan menemanimu. Install di HP maupun PC." />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Blub" />
+    <meta name="apple-mobile-web-app-title" content="Mochi" />
     <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="css/style.css" />
@@ -38,17 +38,17 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand-dot" aria-hidden="true"></span>
-          <span class="brand-name">blub</span>
+          <span class="brand-name">Mochi</span>
         </div>
         <div class="actions">
-          <button id="btnShapes" class="btn ghost on" aria-label="Ganti bentuk badan" title="Ganti bentuk badan Blub">
+          <button id="btnShapes" class="btn ghost on" aria-label="Ganti bentuk badan" title="Ganti bentuk badan Mochi">
             <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a7 7 0 0 1 7 7c0 1.53-.49 2.95-1.33 4.1.83.63 1.33 1.55 1.33 2.65 0 2.16-2.01 3.75-4.5 3.75h-5c-2.49 0-4.5-1.59-4.5-3.75 0-1.1.5-2.02 1.33-2.65A6.96 6.96 0 0 1 5 10a7 7 0 0 1 7-7Z"/></svg>
           </button>
           <button id="btnInstall" class="btn ghost hidden" aria-label="Pasang aplikasi" title="Pasang aplikasi">
             <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.17l2.88-2.88a1 1 0 1 1 1.41 1.41l-4.58 4.59a1 1 0 0 1-1.42 0L6.71 11.7A1 1 0 1 1 8.12 10.3L11 13.17V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1a1 1 0 0 1 1-1Z"/></svg>
             <span>Pasang</span>
           </button>
-          <button id="btnMic" class="btn ghost hidden" aria-label="Ngomong ke Blub" title="Ngomong ke Blub">
+          <button id="btnMic" class="btn ghost hidden" aria-label="Ngomong ke Mochi" title="Ngomong ke Mochi">
             <svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M12 3a3 3 0 0 1 3 3v6a3 3 0 1 1-6 0V6a3 3 0 0 1 3-3Zm-7 9a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V21a1 1 0 1 1-2 0v-2.07A7 7 0 0 1 5 12Z"/></svg>
           </button>
           <button id="btnSound" class="btn ghost on" aria-label="Suara" title="Suara nyala/mati">
@@ -62,12 +62,12 @@
 
       <main class="main-content">
         <div class="stage-wrap">
-          <section id="stage" class="stage" aria-label="Blub si blob — teman AI interaktif">
+          <section id="stage" class="stage" aria-label="Mochi si blob — teman AI interaktif">
             <div id="bubble" class="bubble hidden"></div>
             <div id="zzz" class="zzz hidden" aria-hidden="true"><span>z</span><span>z</span><span>z</span></div>
             <div id="snore" class="snore hidden" aria-hidden="true"></div>
             <div id="blobGround" class="blob-ground" aria-hidden="true"></div>
-            <svg id="blobSvg" viewBox="-158 -158 316 316" role="img" aria-label="Blub"></svg>
+            <svg id="blobSvg" viewBox="-158 -158 316 316" role="img" aria-label="Mochi"></svg>
             <div id="idleBadge" class="idle-badge hidden"></div>
           </section>
         </div>
@@ -350,7 +350,7 @@
       <form method="dialog" class="dlg-body">
         <h2>Pengaturan</h2>
         <p class="hint">
-          Blub jalan <b>offline</b> pakai otak lokal. Aktifkan AI pintar lewat SumoPod —
+          Mochi jalan <b>offline</b> pakai otak lokal. Aktifkan AI pintar lewat SumoPod —
           Base URL & Model sudah terisi, tinggal masukkan API Key!
         </p>
         <label>Base URL
@@ -363,7 +363,7 @@
           <input id="setModel" type="text" placeholder="gpt-5-nano" />
         </label>
         <label>Kepribadian (system prompt)
-          <textarea id="setSys" rows="3" placeholder="Kamu adalah Blub…"></textarea>
+          <textarea id="setSys" rows="3" placeholder="Kamu adalah Mochi…"></textarea>
         </label>
         <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
         <p class="hint">
@@ -396,7 +396,7 @@
 
     <dialog id="installDlg" class="dlg">
       <div class="dlg-body">
-        <h2>Pasang Blub</h2>
+        <h2>Pasang Mochi</h2>
         <div id="installHow"></div>
         <div class="dlg-actions">
           <button value="close" class="btn primary">Oke</button>

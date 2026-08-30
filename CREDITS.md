@@ -1,4 +1,4 @@
-# Credits
+﻿# Credits
 
 ## Mesin avatar — jeremy-prt/bloub (MIT)
 
@@ -21,6 +21,6 @@ Yang diambil dari sana:
 - 8 bentuk badan & 12 warna dari personalisasi bawaan
 
 Sambungan ke aplikasi chat (render frame → SVG, pemetaan mood → state/ekspresi)
-ada di `js/blubbot.js` dan merupakan kode orisinal aplikasi ini.
+ada di `js/mochibot.js` dan merupakan kode orisinal aplikasi ini.
 
 Catatan: lisensi MIT proyek asal mencakup kodenya, bukan desain yang ditirunya.
