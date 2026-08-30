@@ -1519,6 +1519,7 @@ let meditasiLeft = 0;
 let meditasiTotal = 0;
 let meditasiPresetMin = 5;
 let meditasiAudioCtx = null;
+let meditasiMasterGain = null;
 let meditasiBowlType = 'tibetan';
 let meditasiGuided = true;
 let meditasiLastSpoken = '';
@@ -1533,7 +1534,12 @@ const BOWL_SOUNDS = {
 function playBowlSound(bowlType) {
   const bt = bowlType || meditasiBowlType;
   const cfg = BOWL_SOUNDS[bt] || BOWL_SOUNDS.tibetan;
-  if (!meditasiAudioCtx) meditasiAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!meditasiAudioCtx) {
+    meditasiAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    meditasiMasterGain = meditasiAudioCtx.createGain();
+    meditasiMasterGain.gain.value = 0.85;
+    meditasiMasterGain.connect(meditasiAudioCtx.destination);
+  }
   const ctx = meditasiAudioCtx;
   if (ctx.state === 'suspended') ctx.resume();
   const now = ctx.currentTime;
@@ -1542,13 +1548,27 @@ function playBowlSound(bowlType) {
     const gain = ctx.createGain();
     osc.type = cfg.type;
     osc.frequency.value = freq;
+    osc.detune.value = (Math.random() - 0.5) * 6;
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.12 / (i + 1), now + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + cfg.decay + i);
+    gain.gain.linearRampToValueAtTime(0.2 / (i + 1), now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0008, now + cfg.decay + i);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(meditasiMasterGain);
     osc.start(now);
     osc.stop(now + cfg.decay + i + 1);
+
+    // bright overtone for a clearer, "nyaring" ring
+    const overtone = ctx.createOscillator();
+    const ogain = ctx.createGain();
+    overtone.type = 'sine';
+    overtone.frequency.value = freq * 2;
+    ogain.gain.setValueAtTime(0, now);
+    ogain.gain.linearRampToValueAtTime(0.06 / (i + 1), now + 0.02);
+    ogain.gain.exponentialRampToValueAtTime(0.0008, now + cfg.decay * 0.65 + i);
+    overtone.connect(ogain);
+    ogain.connect(meditasiMasterGain);
+    overtone.start(now);
+    overtone.stop(now + cfg.decay * 0.65 + i + 0.5);
   });
 }
 
@@ -1584,8 +1604,9 @@ function meditasiRenderTimer() {
 /* Breathing circle animation — 8s cycle: 4s expand, 4s contract */
 function startBreathAnimation() {
   const circle = els.meditasiBreathCircle;
-  const text = els.meditasiBreathText;
   if (!circle) return;
+  const text = els.meditasiBreathText;
+  if (text) text.textContent = '';
   const t0 = performance.now();
   const animate = () => {
     if (!meditasiRunning) return;
@@ -1597,13 +1618,11 @@ function startBreathAnimation() {
       const scale = 1 + p * 0.6; // 1 → 1.6
       circle.style.transform = `scale(${scale.toFixed(3)})`;
       circle.style.opacity = (0.4 + p * 0.4).toFixed(2);
-      text.textContent = 'Tarik napas';
     } else {
       const p = (cycle - 4) / 4;
       const scale = 1.6 - p * 0.6; // 1.6 → 1
       circle.style.transform = `scale(${scale.toFixed(3)})`;
       circle.style.opacity = (0.8 - p * 0.4).toFixed(2);
-      text.textContent = 'Hembuskan';
     }
     meditasiBreathRaf = requestAnimationFrame(animate);
   };
@@ -1688,7 +1707,7 @@ function meditasiTick() {
 els.meditasiStart.addEventListener('click', () => {
   if (meditasiPrepping) {
     // Cancel prep
-    clearInterval(meditasiPrepTimer);
+    clearTimeout(meditasiPrepTimer);
     meditasiPrepping = false;
     els.meditasiStart.textContent = 'Mulai';
     els.meditasiLabel.textContent = 'Dibatalkan';
@@ -1699,12 +1718,16 @@ els.meditasiStart.addEventListener('click', () => {
   }
   if (meditasiRunning) return; // shouldn't happen, pause handles this
 
-  // Begin prep — calm, no counting
+  // Begin prep — 7s for user to settle, then start timer after bowl ring fades
   meditasiPrepping = true;
   els.meditasiStart.textContent = 'Batal';
   els.meditasiLabel.textContent = 'Menyiapkan…';
   playBowlSound();
   speakGuided('Mari mulai meditasi. Tutup mata, rasakan napasmu.');
+
+  const bowlCfg = BOWL_SOUNDS[meditasiBowlType] || BOWL_SOUNDS.tibetan;
+  const bowlTailMs = (bowlCfg.decay + bowlCfg.freqs.length - 1) * 1000 + 300;
+  const prepMs = Math.max(7000, bowlTailMs);
 
   meditasiPrepTimer = setTimeout(() => {
     meditasiPrepping = false;
@@ -1713,7 +1736,7 @@ els.meditasiStart.addEventListener('click', () => {
     showMeditasiActive();
     startBreathAnimation();
     meditasiInterval = setInterval(meditasiTick, 1000);
-  }, 3000);
+  }, prepMs);
 });
 
 // Pause button (active phase)
@@ -1795,7 +1818,7 @@ document.querySelectorAll('.meditasi-preset').forEach(btn => {
 // Close (from setup phase)
 els.meditasiClose.addEventListener('click', () => {
   clearInterval(meditasiInterval);
-  clearInterval(meditasiPrepTimer);
+  clearTimeout(meditasiPrepTimer);
   stopBreathAnimation();
   meditasiPrepping = false;
   meditasiRunning = false;
