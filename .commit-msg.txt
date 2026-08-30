@@ -1,9 +1,8 @@
-chore: rebrand Blub -> Mochi, rename blubbot.js -> mochibot.js
+chore: hapus fitur tilt HP (deviceorientation) di mobile
 
-Branding dan nama project diganti dari Blub ke Mochi di seluruh file
-(index.html, manifest, sw.js, app.js, brain.js, CREDITS.md). File
-js/blubbot.js di-rename menjadi js/mochibot.js. Cache version bump
-v88 -> v89. bloub-engine.js tetap (dependency eksternal).
+Fitur mata blob mengikuti gerakan HP (deviceorientation) dihapus
+termasuk tombol permission iOS. Pointer move/down tetap aktif.
+Cache v89 -> v90.
 
 Generated with [Devin](https://devin.ai)
 
