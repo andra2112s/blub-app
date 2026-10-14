@@ -1,4 +1,6 @@
-﻿const MEM_KEY = 'Mochi.memory';
+﻿import { createTaskManager } from './tasks.js';
+
+const MEM_KEY = 'Mochi.memory';
 const HIST_KEY = 'Mochi.history';
 
 let PERSONA = detectPersona();
@@ -39,6 +41,7 @@ export function createBrain() {
   let mem = load(MEM_KEY, { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] });
   let history = [];
   try { history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch { history = []; }
+  const tasks = createTaskManager();
 
   const saveMem = () => localStorage.setItem(MEM_KEY, JSON.stringify(mem));
   const pushHist = (role, content) => {
@@ -49,6 +52,14 @@ export function createBrain() {
   const clearHist = () => { history = []; localStorage.removeItem(HIST_KEY); };
 
   const getSettings = () => load('Mochi.settings', { url: '', key: '', model: '', sys: '' });
+
+  // Interpolasi ${PERSONA} / ${nameRef} untuk string literal yang tertulis
+  // dengan single quotes (bukan template literal).
+  function interpText(s) {
+    return String(s)
+      .replace(/\$\{PERSONA\}/g, PERSONA)
+      .replace(/\$\{nameRef\}/g, mem.name || 'kamu');
+  }
 
   function resolveApiConfig() {
     const cfg = getSettings();
@@ -91,7 +102,7 @@ export function createBrain() {
     'Otak manusia menghabiskan 20% energi tubuh padahal cuma 2% berat badan. Boros! 🧠',
     'Bulan bergerak menjauhi Bumi 3.8 cm per tahun. Pelan-pelan banget, kayak status hubunganmu.',
     'Koala punya sidik jari hampir mirip manusia. Jangan-jangan mereka menyamar.',
-    'Air mata punya 3 jenis: produces untukMembersihkan mata, refleks karena iritasi, dan emosional saat sedih.',
+    'Air mata punya 3 jenis: basal untuk membersihkan mata, refleks karena iritasi, dan emosional saat sedih.',
     'Semut bisa mengangkat beban 50x berat badannya. Coba bayangin kamu ngangkat mobil! 🐜'
   ];
 
@@ -218,7 +229,7 @@ export function createBrain() {
       saveMem();
       const greetMem = mem.from ? ` dari ${mem.from}` : '';
       const likeMem = mem.likes.length ? ` dan suka ${mem.likes.join(', ')}` : '';
-      return { text: `${newName}${greetMem}${likeMem}! Nama yang keren. ${PERSONA} akan selalu ingat kamu. Senang berkenalan正式!`, state: 'excite' };
+      return { text: `${newName}${greetMem}${likeMem}! Nama yang keren. ${PERSONA} akan selalu ingat kamu. Senang berkenalan!`, state: 'excite' };
     }
 
     if (/(siapa nama\s?(ku|saya)|ingat nama(ku| saya)?|kamu tahu nama(ku| saya)|nama aku siapa)/.test(t)) {
@@ -308,7 +319,7 @@ export function createBrain() {
       const hari = d.toLocaleDateString('id-ID', { weekday: 'long' });
       const tgl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
       const adj = ['Senin', 'Selasa', 'Rabu', 'Kamis'].includes(hari) ? 'Masih weekdays, semangat!' : 'Weekend! Waktunya refresh.';
-      return { text: `Hari ${hari}, ${tgl}. ${adj}`, state: 'open' };
+      return { text: `Hari ${hari}, ${tgl}. ${adj}`, state: 'think' };
     }
 
     if (/(joke|lelucon|lawakan|humor|ketawa|lucu(in|an)?|bikin ketawa|cerita lucu)/.test(t)) {
@@ -382,7 +393,10 @@ export function createBrain() {
       return { text: `Aku ${PERSONA}! Kenapa, suka sama namaku? 😄`, state: 'happy' };
     }
 
-    const mathCandidate = t.replace(/^(berapa|hitung(in)?|berapa hasil|hasil dari)\s*/i, '').replace(/[=?]+$/, '');
+    const mathCandidate = t
+      .replace(/^(berapa|hitung(in)?|berapa hasil|hasil dari)\s*/i, '')
+      .replace(/[=?]+$/, '')
+      .replace(/(\d)\s*[x×]\s*(?=\d)/g, '$1*');
     const mathResult = safeMath(mathCandidate);
     if (mathResult !== null) {
       return { text: `Hasilnya ${mathResult}! ${nameRef} jago banget soal angka. 🤓`, state: 'excite' };
@@ -744,6 +758,13 @@ export function createBrain() {
 
   async function reply(text) {
     pushHist('user', text);
+
+    const taskRes = tasks.handleCommand(text);
+    if (taskRes) {
+      pushHist('assistant', taskRes.text);
+      return taskRes;
+    }
+
     const cfg = getSettings();
     const apiCfg = resolveApiConfig();
 
@@ -766,14 +787,16 @@ export function createBrain() {
 
     await new Promise((r) => setTimeout(r, 300 + Math.min(text.length * 15, 500)));
     const local = localReply(text);
+    local.text = interpText(local.text);
     pushHist('assistant', local.text);
     return local;
   }
 
   return {
     reply,
-    randomQuip: () => pick(quips),
+    randomQuip: () => interpText(pick(quips)),
     memory: () => ({ ...mem }),
+    tasks,
     setName(n) {
       mem.name = (n || '').trim().slice(0, 24);
       saveMem();
@@ -781,6 +804,7 @@ export function createBrain() {
     clearAll() {
       mem = { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] };
       saveMem(); clearHist();
+      tasks.clearAll();
     },
     clearHistoryOnly: clearHist
   };

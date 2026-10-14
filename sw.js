@@ -1,4 +1,4 @@
-﻿const CACHE = 'Mochi-v94';
+﻿const CACHE = 'Mochi-v96';
 const ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,7 @@ const ASSETS = [
   './js/bloub-engine.js',
   './js/mochibot.js',
   './js/brain.js',
+  './js/tasks.js',
   './js/app.js',
   './manifest.webmanifest',
   './icons/icon-192.png',

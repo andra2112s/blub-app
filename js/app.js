@@ -14,16 +14,10 @@ const els = {
   input: $('#input'),
   chips: $('#chips'),
   radialMenu: $('#radialMenu'),
-  panelPomodoro: $('#panelPomodoro'),
   panelPlay: $('#panelPlay'),
   panelEntertain: $('#panelEntertain'),
   powersRadial: $('#powersRadial'),
   idleRadial: $('#idleRadial'),
-  pomoTime: $('#pomoTime'),
-  pomoLabel: $('#pomoLabel'),
-  pomoStart: $('#pomoStart'),
-  pomoReset: $('#pomoReset'),
-  pomoCount: $('#pomoCount'),
   btnSound: $('#btnSound'),
   btnMic: $('#btnMic'),
   btnSettings: $('#btnSettings'),
@@ -373,8 +367,10 @@ function detectSentiment(state) {
   return 'neutral';
 }
 function applyState(state) {
-  if (!state || !stateHold && state !== 'think' && state !== 'listen') return;
-  if (state === 'talk') return;
+  if (!state) return;
+  // Balasan API pakai state 'talk' — kembalikan ke idle supaya blob tidak
+  // tertahan di mood 'think' selamanya.
+  if (state === 'talk') { blob.setState('idle'); return; }
   blob.setState(state, { holdMs: stateHold[state] || 2200 });
   if (state !== 'listen' && state !== 'sleepy') {
     setTimeout(() => {
@@ -457,14 +453,14 @@ const sadPhrases = [
   'Kamu lagi sibuk ya? 🥺',
   'Aku nungguin kamu di sini…',
   'Sepi banget… kamunya kemana nih?',
-  'Jangan lama-lama ya, ${PERSONA} kangen...',
+  `Jangan lama-lama ya, ${PERSONA} kangen...`,
   'Halo? Kamu masih ada? 💔'
 ];
 
 const cryPhrases = [
   'Aduh… kamu lama banget pergi… 😭',
   'Aku nangis nih… kangen kamu...',
-  'Jangan tinggal ${PERSONA} sendirian dong… 💧',
+  `Jangan tinggal ${PERSONA} sendirian dong… 💧`,
   'Aku mikir kamu udah nggak balik lagi… 😢'
 ];
 
@@ -519,7 +515,7 @@ const emotion = (function() {
       currentPhase = 'idle';
       if (reunionMood === 'excite') {
         blob.setState('excite', { holdMs: 2500 });
-        showBubble('Kamu balik!! ${PERSONA} kangen banget! 🥹💕', 3500);
+        showBubble(`Kamu balik!! ${PERSONA} kangen banget! 🥹💕`, 3500);
       } else {
         blob.setState('happy', { holdMs: 2000 });
         showBubble('Yay, kamu balik! 😊', 2500);
@@ -580,7 +576,7 @@ const emotion = (function() {
       startTears();
     } else if (phase === 'cry') {
       blob.setState('sad', { holdMs: 0 });
-      showBubble('Hiks… ${PERSONA} nangis… 😭', 4000);
+      showBubble(`Hiks… ${PERSONA} nangis… 😭`, 4000);
       // More tears
       startTears();
     }
@@ -861,13 +857,17 @@ function greet(forceNew = false) {
   const mem = brain.memory();
   const namePart = mem.name ? `, ${mem.name}` : '';
   if (forceNew || !visited) {
+    const c = brain.tasks.getCounts();
+    const brief = (c.pendingTodos || c.upcomingReminders || c.overdueReminders)
+      ? `\n\n📋 ${c.pendingTodos} tugas pending, ${c.upcomingReminders} pengingat mendatang${c.overdueReminders ? `, ${c.overdueReminders} sudah lewat` : ''}.`
+      : '';
     setTimeout(() => {
       const msg = forceNew
         ? `Ingatan bersih! Aku ${PERSONA}. Siapa nama kamu?`
         : mem.name
           ? `Halo lagi${namePart}! Kangen nggak sama blob hitam yang satu ini?`
-          : `Hai! Aku ${PERSONA} 🫧 Coba colek badanku, atau ketik sesuatu di bawah!`;
-      addMsg('bot', msg);
+          : `Hai! Aku ${PERSONA} 🫧 Coba colek badanku, atau tap tombol blob di bawah lalu pilih Chat!`;
+      addMsg('bot', msg + brief);
       showBubble(mem.name ? 'Balik lagi!' : 'Halo!');
       blob.setState('happy', { holdMs: 2000 });
     }, 700);
@@ -875,6 +875,28 @@ function greet(forceNew = false) {
   } else {
     showBubble(`${PERSONA}~ kamu balik!`);
   }
+}
+
+async function pushReminder(lines) {
+  try {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') await Notification.requestPermission();
+    if (Notification.permission !== 'granted') return;
+    const opts = { body: lines, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'mochi-reminder' };
+    const reg = navigator.serviceWorker ? await navigator.serviceWorker.ready : null;
+    if (reg && reg.showNotification) reg.showNotification('⏰ Mochi reminder', opts);
+    else new Notification('⏰ Mochi reminder', opts);
+  } catch {}
+}
+
+function checkReminders() {
+  const due = brain.tasks.checkDueReminders();
+  if (!due.length) return;
+  const lines = due.map(r => `⏰ ${r.text}`).join('\n');
+  showBubble(`Ada pengingat!\n${lines}`, 6000);
+  addMsg('bot', `Pengingat jatuh tempo:\n${lines}`);
+  blob.setState('excite', { holdMs: 2500 });
+  pushReminder(lines);
 }
 
 function registerSW() {
@@ -927,8 +949,8 @@ function obFinish() {
     addMsg(
       'bot',
       name
-        ? `Siap, ${name}! Coba colek badanku, atau ketik "meledak!" buat lihat super power-ku!`
-        : 'Siap! Coba colek badanku, atau ketik "meledak!" buat lihat super power-ku.'
+        ? `Siap, ${name}! Coba colek badanku, atau tap tombol blob di bawah — ketik "meledak!" di Chat buat lihat super power-ku!`
+        : 'Siap! Coba colek badanku, atau tap tombol blob di bawah — ketik "meledak!" di Chat buat lihat super power-ku.'
     );
     showBubble(mem.name ? `Halo, ${mem.name}!` : `${PERSONA} ${PERSONA}~`);
     blob.setState('excite', { holdMs: 1800 });
@@ -955,6 +977,7 @@ function initOnboarding() {
   els.obSkip.addEventListener('click', () => {
     store.set('Mochi.onboarded2', '1');
     els.obDlg.close();
+    greet();
   });
   document.querySelectorAll('[data-persona]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1026,7 +1049,7 @@ let radialStartAngle = 0;
 let radialStartRot = 0;
 
 function getRadialCenter() {
-  const rect = els.blobLauncher.getBoundingClientRect();
+  const rect = blobLauncher.getBoundingClientRect();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
 
@@ -1931,74 +1954,6 @@ els.chips.addEventListener('click', (e) => {
   if (chip) send(chip.textContent);
 });
 
-/* ── Pomodoro Timer ── */
-let pomoInterval = null;
-let pomoTotal = 25 * 60;
-let pomoLeft = pomoTotal;
-let pomoRunning = false;
-let pomoSessions = 0;
-let pomoIsBreak = false;
-
-function pomoTick() {
-  if (pomoLeft <= 0) {
-    clearInterval(pomoInterval);
-    pomoRunning = false;
-    if (!pomoIsBreak) {
-      pomoSessions++;
-      els.pomoCount.textContent = pomoSessions;
-      pomoIsBreak = true;
-      pomoLeft = pomoSessions % 4 === 0 ? 30 * 60 : 5 * 60;
-      els.pomoLabel.textContent = 'Rehat ☕';
-      showBubble('Waktu rehat! ☕', 4000);
-      blob.triggerState('exclaim');
-    } else {
-      pomoIsBreak = false;
-      pomoLeft = 25 * 60;
-      els.pomoLabel.textContent = 'Siap mulai';
-      showBubble('Rehat selesai! Siap lanjut?', 3000);
-      blob.triggerState('notify');
-    }
-    els.pomoStart.textContent = 'Mulai';
-    els.pomoReset.hidden = false;
-    pomoRender();
-    return;
-  }
-  pomoLeft--;
-  pomoRender();
-}
-
-function pomoRender() {
-  const m = Math.floor(pomoLeft / 60);
-  const s = pomoLeft % 60;
-  els.pomoTime.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-}
-
-els.pomoStart.addEventListener('click', () => {
-  if (pomoRunning) {
-    clearInterval(pomoInterval);
-    pomoRunning = false;
-    els.pomoStart.textContent = 'Lanjut';
-    els.pomoLabel.textContent = 'Dijeda';
-  } else {
-    pomoRunning = true;
-    els.pomoStart.textContent = 'Jeda';
-    els.pomoLabel.textContent = pomoIsBreak ? 'Rehat... ☕' : 'Fokus! 💪';
-    pomoInterval = setInterval(pomoTick, 1000);
-    if (!pomoIsBreak) blob.setState('excite', { holdMs: 1200 });
-  }
-});
-
-els.pomoReset.addEventListener('click', () => {
-  clearInterval(pomoInterval);
-  pomoRunning = false;
-  pomoIsBreak = false;
-  pomoLeft = 25 * 60;
-  pomoRender();
-  els.pomoStart.textContent = 'Mulai';
-  els.pomoLabel.textContent = 'Siap mulai';
-  els.pomoReset.hidden = true;
-});
-
 /* ── Blob Timer Mode (blob morphs into clock) ── */
 let blobTimerRunning = false;
 let blobTimerInterval = null;
@@ -2321,6 +2276,8 @@ document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (els.obDlg.open) return;
+    if (!els.meditasiOverlay.classList.contains('hidden')) { els.meditasiClose.click(); return; }
+    if (!els.blobTimerOverlay.classList.contains('hidden')) { closeBlobTimer(); return; }
     const openPanel = document.querySelector('.feature-panel:not([hidden])');
     if (openPanel) { closeAllPanels(); return; }
     els.settingsDlg.close?.();
@@ -2331,7 +2288,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v74';
+const APP_VERSION = 'v96';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
@@ -2374,6 +2331,8 @@ initInstall();
 initOnboarding();
 restoreChat();
 greet();
+checkReminders();
+setInterval(checkReminders, 30000);
 registerSW();
 scheduleIdle();
 emotion.init();

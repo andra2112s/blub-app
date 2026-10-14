@@ -1,0 +1,11 @@
+{
+  "name": "blub-ai-companion",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Blub — blob AI companion interaktif, installable di mobile & PC (PWA)",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "start": "node dev-server.mjs"
+  }
+}

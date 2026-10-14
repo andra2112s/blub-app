@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v94';
+      var V='v96';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('Mochi.activeSw')===V)return;
@@ -163,22 +163,6 @@
           </form>
         </aside>
       </main>
-
-        <section class="feature-panel" id="panelPomodoro" hidden>
-          <div class="panel-header">
-            <button class="btn-back" data-close="panelPomodoro">←</button>
-            <span class="panel-title">⏱️ Pomodoro</span>
-          </div>
-          <div class="panel-body pomo-center">
-            <div class="pomo-timer" id="pomoTime">25:00</div>
-            <div class="pomo-label" id="pomoLabel">Siap mulai</div>
-            <div class="pomo-controls">
-              <button class="btn btn-pomo" id="pomoStart">Mulai</button>
-              <button class="btn btn-pomo" id="pomoReset" hidden>Reset</button>
-            </div>
-            <div class="pomo-sessions">Sesi selesai: <span id="pomoCount">0</span>/4</div>
-          </div>
-        </section>
 
         <!-- Blob timer overlay (shown when blob morphs into clock) -->
         <div id="blobTimerOverlay" class="blob-timer-overlay hidden">

@@ -2,6 +2,7 @@ export function createMusicDancer(svg, blob) {
   let actx = null;
   let analyser = null;
   let source = null;
+  let stream = null;
   let dataArray = null;
   let raf = null;
   let dancing = false;
@@ -21,9 +22,10 @@ export function createMusicDancer(svg, blob) {
 
   async function startFromMic() {
     init();
+    if (dancing) return true;
     if (actx.state === 'suspended') await actx.resume();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       source = actx.createMediaStreamSource(stream);
       source.connect(analyser);
       dancing = true;
@@ -48,6 +50,12 @@ export function createMusicDancer(svg, blob) {
     dancing = false;
     if (raf) cancelAnimationFrame(raf);
     raf = null;
+    // Release the mic so the browser indicator turns off
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+      if (source) { try { source.disconnect(); } catch {} source = null; }
+    }
     svg.style.transform = '';
     svg.style.transition = 'transform 0.3s ease-out';
     setTimeout(() => { svg.style.transition = ''; }, 350);
