@@ -394,10 +394,13 @@ body {
   60%  { transform: rotate(-8deg) translateY(4px); }
   80%  { transform: rotate(0deg) translateY(0); }
 }
+/* In-plane somersault — never goes edge-on like rotateX would */
 @keyframes idleFlip {
-  0%   { transform: rotateX(0deg); }
-  50%  { transform: rotateX(180deg); }
-  100% { transform: rotateX(360deg); }
+  0%   { transform: translateY(0) rotate(0deg) scale(1, 1); }
+  20%  { transform: translateY(-10vh) rotate(-90deg) scale(1, 0.92); }
+  50%  { transform: translateY(-14vh) rotate(-180deg) scale(1.04, 1); }
+  80%  { transform: translateY(-10vh) rotate(-270deg) scale(1, 0.92); }
+  100% { transform: translateY(0) rotate(-360deg) scale(1, 1); }
 }
 @keyframes idleSlideLeft {
   0%   { transform: translateX(0); }

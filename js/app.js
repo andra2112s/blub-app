@@ -1,4 +1,5 @@
 ﻿import { BlobCharacter, SHAPES_INFO, shapePreviewPath, startIdleAnimations } from './mochibot.js';
+import { COLOR_BY_ID, mixHex } from './bloub-engine.js';
 import { createBrain, PERSONA, setPersona } from './brain.js';
 import { createMusicDancer } from './music.js';
 
@@ -1063,6 +1064,11 @@ const blob = new BlobCharacter(els.svg, {
     if (Math.random() < 0.7) showBubble(brain.randomQuip(), 1800);
   }
 });
+// Restore warna badan hasil goncang (tanpa efek flash) — hex baru / id lama
+const savedBodyV = store.get('Mochi.bodyColor', '');
+const savedBodyHex = /^#[0-9a-f]{6}$/i.test(savedBodyV) ? savedBodyV
+  : (COLOR_BY_ID.get(savedBodyV) || {}).hex;
+if (savedBodyHex) blob.bodyEl.setAttribute('fill', savedBodyHex);
 
 const idleAnims = startIdleAnimations(els.svg, {
   onBubble: (text, ms) => showBubble(text, ms),
@@ -1303,6 +1309,9 @@ let blobOffsetX = 0, blobOffsetY = 0; // translate from center
 let lastMoveX = 0, lastMoveY = 0, lastMoveTime = 0;
 let velX = 0, velY = 0; // velocity for physics
 let physicsRAF = null;
+// Shake-to-recolor: hold blob + wiggle for ~4s → random persistent color
+let shakeHoldStart = 0, shakeReversals = 0, shakeLastSignX = 0, shakeLastSignY = 0, shakeFired = false;
+let shakeTimer = null;
 
 function stopPhysics() {
   if (physicsRAF) { cancelAnimationFrame(physicsRAF); physicsRAF = null; }
@@ -1423,6 +1432,15 @@ els.svg.addEventListener('pointerdown', (e) => {
   const cy = rect.top + rect.height / 2;
   dragStartAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
   els.svg.setPointerCapture(e.pointerId);
+  shakeHoldStart = performance.now();
+  shakeReversals = 0;
+  shakeLastSignX = 0;
+  shakeLastSignY = 0;
+  stopShakeSpectrum(); // tap blob saat spektrum jalan = kunci warna ini
+  clearTimeout(shakeTimer);
+  shakeTimer = setTimeout(() => {
+    if (dragStartAngle !== null && !shakeFired && shakeReversals >= 2) startShakeSpectrum();
+  }, 2000);
 
   // Long-press = mochi squish effect
   clearTimeout(blobLongPressTimer);
@@ -1466,6 +1484,26 @@ els.svg.addEventListener('pointermove', (e) => {
     velX = (e.clientX - lastMoveX) / dtMs * 16.67;
     velY = (e.clientY - lastMoveY) / dtMs * 16.67;
   }
+
+  // Shake detection: hitung pembalikan arah gerakan saat blob ditahan
+  const mvx = e.clientX - lastMoveX;
+  const mvy = e.clientY - lastMoveY;
+  const SHK_MIN = 9;
+  if (Math.abs(mvx) > SHK_MIN) {
+    const s = Math.sign(mvx);
+    if (shakeLastSignX && s !== shakeLastSignX) shakeReversals++;
+    shakeLastSignX = s;
+  }
+  if (Math.abs(mvy) > SHK_MIN) {
+    const s = Math.sign(mvy);
+    if (shakeLastSignY && s !== shakeLastSignY) shakeReversals++;
+    shakeLastSignY = s;
+  }
+  // Mulai detik ke-2: cukup pernah digoyang (≥2 pembalikan arah), warna mulai mengalir
+  if (!shakeFired && now - shakeHoldStart >= 2000 && shakeReversals >= 2) {
+    startShakeSpectrum();
+  }
+
   lastMoveX = e.clientX;
   lastMoveY = e.clientY;
   lastMoveTime = now;
@@ -1478,6 +1516,8 @@ els.svg.addEventListener('pointermove', (e) => {
 
 els.svg.addEventListener('pointerup', (e) => {
   e.stopPropagation();
+  clearTimeout(shakeTimer);
+  stopShakeSpectrum(); // lepas = warna berhenti di sini
   clearTimeout(blobLongPressTimer);
   if (blobLongPressed) {
     // Release mochi squish — bounce back
@@ -1530,6 +1570,8 @@ els.svg.addEventListener('pointerup', (e) => {
 });
 
 els.svg.addEventListener('pointercancel', () => {
+  clearTimeout(shakeTimer);
+  stopShakeSpectrum();
   clearTimeout(blobLongPressTimer);
   if (blobLongPressed) { blobLongPressed = false; blobUnsquish(); }
   stopPhysics();
@@ -1541,6 +1583,59 @@ els.svg.addEventListener('pointercancel', () => {
   velX = 0; velY = 0;
   dragStartAngle = null;
 });
+
+// Hold + goncang blob ~4 detik → warna mengalir pelan menyusuri spektrum,
+// berhenti di warna terakhir saat dilepas (tersimpan sampai digoncang lagi)
+const SPECTRUM = [
+  '#e8483f', // merah
+  '#f06524', // oranye kemerahan
+  '#f08a24', // oranye
+  '#f0b429', // kuning
+  '#c8d92e', // lime
+  '#6ad34f', // hijau muda
+  '#3ecf8e', // hijau
+  '#2fbfa0', // toska
+  '#2fc4e8', // cyan
+  '#3b93f0', // biru
+  '#5b6cf0', // indigo
+  '#8b5cf6', // ungu
+  '#b44ce8', // magenta
+  '#e152b0', // pink
+];
+let shakeSpecPos = 0, shakeSpecLastT = 0;
+
+function spectrumHex(pos) {
+  const n = SPECTRUM.length;
+  const p = ((pos % n) + n) % n;
+  const i = Math.floor(p);
+  return mixHex(SPECTRUM[i], SPECTRUM[(i + 1) % n], p - i);
+}
+
+function startShakeSpectrum() {
+  shakeFired = true;
+  const cur = (blob.bodyEl.getAttribute('fill') || '').toLowerCase();
+  const idx = SPECTRUM.indexOf(cur);
+  shakeSpecPos = idx >= 0 ? idx : 0;
+  showBubble('Lepas untuk pilih warna! ✨', 2200);
+  playPop();
+  if (navigator.vibrate) navigator.vibrate(30);
+  shakeSpecLastT = performance.now();
+  const tick = (t) => {
+    if (!shakeFired) return;
+    shakeSpecPos += (t - shakeSpecLastT) / 1000 * 0.85; // ~9.4s per putaran spektrum penuh
+    shakeSpecLastT = t;
+    blob.bodyEl.setAttribute('fill', spectrumHex(shakeSpecPos));
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+function stopShakeSpectrum() {
+  if (!shakeFired) return;
+  shakeFired = false;
+  const hex = blob.bodyEl.getAttribute('fill');
+  if (/^#[0-9a-f]{6}$/i.test(hex)) store.set('Mochi.bodyColor', hex);
+}
 
 // Blob launcher icon — opens radial menu, long-press = voice, tap mic = stop
 const blobLauncher = $('#blobLauncher');
@@ -2012,9 +2107,13 @@ let stageSwipeLastTime = 0;
 let spinX = 0, spinY = 0; // 2.5D rotation angles
 
 function applyBlobTransform3D() {
+  // soft-clamp rotations so the flat SVG never hits edge-on (paper-thin) angles
+  const leanY = 45 * Math.tanh(spinY / 45);        // miring kiri/kanan, maks ±45°
+  const nodX = 55 * Math.tanh(spinX / 55);         // angguk depan/belakang, maks ±55°
+  const rollZ = currentRotation + spinY * 0.45;    // kelebihan swipe = menggelinding
   els.svg.style.transform =
     `translate(${blobOffsetX.toFixed(1)}px, ${blobOffsetY.toFixed(1)}px) ` +
-    `rotateY(${spinY.toFixed(1)}deg) rotateX(${(-spinX).toFixed(1)}deg) rotateZ(${currentRotation.toFixed(1)}deg)`;
+    `rotateY(${leanY.toFixed(1)}deg) rotateX(${(-nodX).toFixed(1)}deg) rotateZ(${rollZ.toFixed(1)}deg)`;
 }
 
 els.stage.addEventListener('pointerdown', (e) => {

@@ -151,7 +151,57 @@ export class BlobCharacter {
     this._glowColor = localStorage.getItem('Mochi.glowColor') || '#ffffff';
 
     this.gEyes.append(...this.eyeEls, this.mouthEl);
-    svg.append(this.gBack, this.bodyEl, this.gEyes, this.gFront);
+
+    /* ── 3D shading layer — clipped to body silhouette ── */
+    this.bodyEl.setAttribute('id', 'blobBodyPath');
+    const defs = el('defs');
+    const mkGrad = (id, color, op) => {
+      const g = el('radialGradient', { id });
+      g.append(
+        el('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': op }),
+        el('stop', { offset: '60%', 'stop-color': color, 'stop-opacity': String(op * 0.4) }),
+        el('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': '0' })
+      );
+      return g;
+    };
+    const clip = el('clipPath', { id: 'blobBodyClip' });
+    clip.append(el('use', { href: '#blobBodyPath' }));
+    // vertical gradient: atas agak muda → tengah netral → bawah agak gelap
+    const linGrad = el('linearGradient', {
+      id: 'blobShadeVert', gradientUnits: 'userSpaceOnUse',
+      x1: '0', y1: '-95', x2: '0', y2: '95'
+    });
+    linGrad.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.24' }),
+      el('stop', { offset: '42%', 'stop-color': '#ffffff', 'stop-opacity': '0' }),
+      el('stop', { offset: '72%', 'stop-color': '#000000', 'stop-opacity': '0' }),
+      el('stop', { offset: '100%', 'stop-color': '#000000', 'stop-opacity': '0.22' })
+    );
+    defs.append(
+      linGrad,
+      mkGrad('blobShadeHi', '#ffffff', 0.16),
+      mkGrad('blobShadeLow', '#000000', 0.28),
+      mkGrad('blobShadeSpec', '#ffffff', 0.32),
+      clip
+    );
+    this.gShade = el('g', { 'clip-path': 'url(#blobBodyClip)', 'pointer-events': 'none' });
+    this.gShade.append(
+      // vertical gradient wash — clipped to body silhouette
+      el('rect', { x: '-160', y: '-160', width: '320', height: '320', fill: 'url(#blobShadeVert)' }),
+      // broad dome light covering most of the body
+      el('ellipse', { cx: '-12', cy: '-48', rx: '135', ry: '108', fill: 'url(#blobShadeHi)' }),
+      // ambient occlusion: bottom-right
+      el('ellipse', { cx: '30', cy: '95', rx: '125', ry: '60', fill: 'url(#blobShadeLow)' }),
+      // tiny specular glint near the top edge
+      el('ellipse', { cx: '-56', cy: '-74', rx: '24', ry: '12', fill: 'url(#blobShadeSpec)', transform: 'rotate(-20 -56 -74)' })
+    );
+
+    // All blob content wrapped in gBody so gaze tilt can move the whole body
+    this.gBody = el('g');
+    this.gBody.append(this.gBack, this.bodyEl, this.gShade, this.gEyes, this.gFront);
+    svg.append(defs, this.gBody);
+    this.gazeX = 0; this.gazeY = 0;
+    this.gazeTargetX = 0; this.gazeTargetY = 0;
 
     this.engine = new BotEngine(
       100,
@@ -214,6 +264,20 @@ export class BlobCharacter {
     if (this.lookActive && now - this.lastPointerT > 4) {
       this.lookActive = false;
       this.engine.setLook(null, now);
+    }
+
+    /* ── Gaze tilt: body leans/squashes toward where the eyes look ── */
+    if (!this.lookActive) { this.gazeTargetX = 0; this.gazeTargetY = 0; }
+    this.gazeX += (this.gazeTargetX - this.gazeX) * 0.08;
+    this.gazeY += (this.gazeTargetY - this.gazeY) * 0.08;
+    if (Math.abs(this.gazeX) > 0.01 || Math.abs(this.gazeY) > 0.01) {
+      const gx = this.gazeX, gy = this.gazeY;
+      this.gBody.setAttribute('transform',
+        `translate(${(gx * 9).toFixed(1)} ${(gy * 5).toFixed(1)}) ` +
+        `rotate(${(gx * 3).toFixed(1)}) skewX(${(gx * -4).toFixed(1)}) ` +
+        `scale(${(1 - Math.abs(gx) * 0.045).toFixed(3)} ${(1 + Math.abs(gx) * 0.02).toFixed(3)})`);
+    } else if (this.gBody.hasAttribute('transform')) {
+      this.gBody.removeAttribute('transform');
     }
 
     /* ── Mic mode: keep mic silhouette, gentle pulse, skip engine ── */
@@ -369,6 +433,8 @@ export class BlobCharacter {
       now
     );
     this.lookActive = true;
+    this.gazeTargetX = Math.max(-1, Math.min(1, nx * 2 - 1));
+    this.gazeTargetY = Math.max(-1, Math.min(1, ny * 2 - 1));
   }
 
   poke() {
