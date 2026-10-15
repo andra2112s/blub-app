@@ -52,13 +52,32 @@ body {
   transition: background 0.3s ease;
 }
 
-/* Subtle gradient for dark mode so it's not flat black */
+/* Pastel mesh gradient — light mode */
+[data-theme="light"] body {
+  background:
+    radial-gradient(ellipse 65% 55% at 12% 18%, rgba(255, 183, 213, 0.5), transparent 62%),
+    radial-gradient(ellipse 60% 50% at 88% 12%, rgba(186, 156, 255, 0.45), transparent 62%),
+    radial-gradient(ellipse 65% 55% at 82% 88%, rgba(147, 217, 255, 0.45), transparent 62%),
+    radial-gradient(ellipse 55% 50% at 12% 88%, rgba(167, 243, 208, 0.42), transparent 62%),
+    linear-gradient(160deg, #fff7f9 0%, #f4f0ff 45%, #edf7ff 100%);
+  background-attachment: fixed;
+}
+
+/* Tinted pastel glows on dark base */
 [data-theme="dark"] body {
-  background: radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
+  background:
+    radial-gradient(ellipse 60% 50% at 15% 15%, rgba(255, 140, 190, 0.12), transparent 60%),
+    radial-gradient(ellipse 55% 45% at 85% 15%, rgba(150, 120, 255, 0.14), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(100, 190, 255, 0.12), transparent 60%),
+    radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) body {
-    background: radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 15%, rgba(255, 140, 190, 0.12), transparent 60%),
+      radial-gradient(ellipse 55% 45% at 85% 15%, rgba(150, 120, 255, 0.14), transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 90%, rgba(100, 190, 255, 0.12), transparent 60%),
+      radial-gradient(ellipse at 50% 0%, #1a1a22 0%, #141418 60%);
   }
 }
 
@@ -586,8 +605,8 @@ body {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: min(72vw, 340px);
-  height: min(10vw, 46px);
+  width: min(44vw, 200px);
+  height: min(8vw, 34px);
   border-radius: 50%;
   background: rgba(10, 10, 14, 0.28);
   filter: blur(10px);
@@ -624,8 +643,7 @@ body {
 .idle-badge {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
-  left: 50%;
-  transform: translateX(-50%);
+  right: 14px;
   background: #0a0a0c;
   color: #f0eff4;
   padding: 6px 16px;
@@ -651,8 +669,8 @@ body {
 }
 .idle-badge.hidden { display: none; }
 @keyframes idleBadgeIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes idleBadgePulse {
   0%, 100% { opacity: 1; transform: scale(1); }
@@ -661,17 +679,19 @@ body {
 
 .bubble {
   position: absolute;
-  top: max(8px, env(safe-area-inset-top));
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px));
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 10px 16px;
-  border-radius: 4px 16px 16px 16px;
+  padding: 7px 12px;
+  border-radius: 4px 14px 14px 14px;
   box-shadow: var(--shadow);
-  font-size: 0.95rem;
-  max-width: min(86%, 420px);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  white-space: pre-line;
+  max-width: min(80%, 340px);
   text-align: center;
   z-index: 5;
 }
@@ -1221,7 +1241,7 @@ body {
     min-width: 0;
   }
   #blobSvg { width: min(36vw, 400px); }
-  .blob-ground { width: min(36vw, 400px); height: min(5vw, 54px); }
+  .blob-ground { width: min(22vw, 250px); height: min(4vw, 40px); }
   /* Timer mode: enlarge blob on desktop so dot-matrix timer is bigger */
   .stage.timer-mode #blobSvg { width: min(60vw, 600px); }
   .stage.timer-mode .blob-ground { width: min(60vw, 600px); }
@@ -1580,15 +1600,23 @@ body {
   pointer-events: auto;
 }
 
+/* User mode: 5 tombol, r=120px */
 .rm-btn[data-feature="chat"]       { --pos: translate(-120px, 0px);    transition-delay: 0.02s; }
-.rm-btn[data-feature="pomodoro"]   { --pos: translate(-111px, -46px);   transition-delay: 0.05s; }
-.rm-btn[data-feature="play"]       { --pos: translate(-85px, -85px);    transition-delay: 0.08s; }
-.rm-btn[data-feature="entertain"]  { --pos: translate(-46px, -111px);   transition-delay: 0.11s; }
-.rm-btn[data-feature="powers"]     { --pos: translate(0px, -120px);     transition-delay: 0.14s; }
-.rm-btn[data-feature="idletest"]   { --pos: translate(46px, -111px);    transition-delay: 0.17s; }
-.rm-btn[data-feature="music"]      { --pos: translate(85px, -85px);     transition-delay: 0.20s; }
-.rm-btn[data-feature="settings"]   { --pos: translate(111px, -46px);    transition-delay: 0.23s; }
-.rm-btn[data-feature="meditasi"]   { --pos: translate(120px, 0px);      transition-delay: 0.26s; }
+.rm-btn[data-feature="tasks"]      { --pos: translate(-85px, -85px);   transition-delay: 0.05s; }
+.rm-btn[data-feature="pomodoro"]   { --pos: translate(0px, -120px);    transition-delay: 0.08s; }
+.rm-btn[data-feature="meditasi"]   { --pos: translate(85px, -85px);    transition-delay: 0.11s; }
+.rm-btn[data-feature="fun"]        { --pos: translate(120px, 0px);     transition-delay: 0.14s; }
+
+/* Dev-only buttons hidden by default */
+.rm-btn[data-dev] { display: none; }
+
+/* Dev mode: 6 tombol — respacing */
+.radial-menu.dev-on .rm-btn[data-feature="chat"]     { --pos: translate(-120px, 0px); }
+.radial-menu.dev-on .rm-btn[data-feature="tasks"]    { --pos: translate(-97px, -71px); }
+.radial-menu.dev-on .rm-btn[data-feature="pomodoro"] { --pos: translate(-37px, -114px); }
+.radial-menu.dev-on .rm-btn[data-feature="meditasi"] { --pos: translate(37px, -114px); }
+.radial-menu.dev-on .rm-btn[data-feature="fun"]      { --pos: translate(97px, -71px); }
+.radial-menu.dev-on .rm-btn[data-dev]                { display: flex; --pos: translate(120px, 0px); transition-delay: 0.17s; }
 
 .radial-menu:not(.hidden) .rm-btn:hover {
   transform: translate(-50%, -50%) rotate(var(--rot)) var(--pos) scale(1.08);
@@ -1696,15 +1724,6 @@ body {
   opacity: 1;
   pointer-events: auto;
 }
-
-/* ── Powers Radial: 7 items, top semicircle r=150px ── */
-#powersRadial .srm-btn:nth-child(2) { --pos: translate(-150px, 0px); transition-delay: 0.02s; }
-#powersRadial .srm-btn:nth-child(3) { --pos: translate(-130px, -75px); transition-delay: 0.06s; }
-#powersRadial .srm-btn:nth-child(4) { --pos: translate(-75px, -130px); transition-delay: 0.10s; }
-#powersRadial .srm-btn:nth-child(5) { --pos: translate(0px, -150px); transition-delay: 0.14s; }
-#powersRadial .srm-btn:nth-child(6) { --pos: translate(75px, -130px); transition-delay: 0.18s; }
-#powersRadial .srm-btn:nth-child(7) { --pos: translate(130px, -75px); transition-delay: 0.22s; }
-#powersRadial .srm-btn:nth-child(8) { --pos: translate(150px, 0px); transition-delay: 0.26s; }
 
 /* ── Idle Radial: 20 items, top semicircle r=150px ── */
 #idleRadial .srm-btn:nth-child(2)  { --pos: translate(-150px, 0px); transition-delay: 0.01s; }
@@ -1874,6 +1893,128 @@ body {
 }
 .play-card:hover { border-color: var(--accent); }
 .play-card:active { transform: scale(0.94); background: var(--border); }
+
+/* ── Tasks panel ── */
+.task-stats {
+  display: flex;
+  gap: 18px;
+  padding: 14px 16px 4px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.task-stats b { color: var(--text); }
+.task-notif {
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.task-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px 12px;
+}
+.task-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.task-form input:focus { outline: none; border-color: var(--accent); }
+.task-form button {
+  width: 44px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.task-form button:active { transform: scale(0.92); }
+.task-section-title {
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+.task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  animation: taskItemIn 0.18s ease;
+}
+@keyframes taskItemIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.task-item.done .task-text { text-decoration: line-through; opacity: 0.5; }
+.task-item.overdue { border-color: #e0a53f; }
+.task-check {
+  background: none;
+  border: none;
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  color: var(--text);
+}
+.task-text { flex: 1; font-size: 0.9rem; word-break: break-word; }
+.task-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.task-del {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px;
+  flex-shrink: 0;
+}
+.task-del:active { color: var(--text); }
+.task-cal {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.task-empty {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Fun panel: grids don't stretch, sections stack */
+#panelFun .play-grid { flex: none; padding-top: 8px; padding-bottom: 8px; }
+
+/* Onboarding: notifikasi step */
+.ob-notif { width: 100%; margin-top: 10px; }
+.ob-notif:disabled { opacity: 0.7; }
+.ob-notif-hint { text-align: center; margin-top: 6px; }
 
 /* ── Stage with active panel ── */
 .stage-wrap:has(.feature-panel:not([hidden])) .stage { pointer-events: none; }

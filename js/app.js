@@ -4,6 +4,32 @@ import { createMusicDancer } from './music.js';
 
 const $ = (sel) => document.querySelector(sel);
 
+// Dev mode — hidden dev-only buttons in radial menu (tap "Mochi" brand 7x to toggle)
+const isDevMode = () => store.get('Mochi.devMode', '0') === '1';
+function applyDevMode() {
+  const on = isDevMode();
+  document.querySelectorAll('.rm-btn[data-dev]').forEach(b => { b.hidden = !on; });
+  const rm = $('#radialMenu');
+  if (rm) rm.classList.toggle('dev-on', on);
+}
+let brandTaps = 0, brandTapTimer = null;
+function initDevModeToggle() {
+  applyDevMode();
+  const brand = $('.brand');
+  if (!brand) return;
+  brand.addEventListener('click', () => {
+    brandTaps++;
+    clearTimeout(brandTapTimer);
+    brandTapTimer = setTimeout(() => { brandTaps = 0; }, 1600);
+    if (brandTaps >= 7) {
+      brandTaps = 0;
+      store.set('Mochi.devMode', isDevMode() ? '0' : '1');
+      applyDevMode();
+      toast(isDevMode() ? '🛠️ Mode developer aktif' : 'Mode developer mati');
+    }
+  });
+}
+
 const els = {
   stage: $('#stage'),
   svg: $('#blobSvg'),
@@ -14,9 +40,6 @@ const els = {
   input: $('#input'),
   chips: $('#chips'),
   radialMenu: $('#radialMenu'),
-  panelPlay: $('#panelPlay'),
-  panelEntertain: $('#panelEntertain'),
-  powersRadial: $('#powersRadial'),
   idleRadial: $('#idleRadial'),
   btnSound: $('#btnSound'),
   btnMic: $('#btnMic'),
@@ -38,9 +61,18 @@ const els = {
   obDlg: $('#obDlg'),
   obDots: $('#obDots'),
   shapeGrid: $('#shapeGrid'),
+  shapeDlg: $('#shapeDlg'),
+  shapeGridQuick: $('#shapeGridQuick'),
   obName: $('#obName'),
   obNext: $('#obNext'),
   obSkip: $('#obSkip'),
+  obNotif: $('#obNotif'),
+  panelTasks: $('#panelTasks'),
+  taskStats: $('#taskStats'),
+  taskForm: $('#taskForm'),
+  taskInput: $('#taskInput'),
+  todoList: $('#todoList'),
+  reminderList: $('#reminderList'),
   btnShape: $('#btnShape'),
   btnShapes: $('#btnShapes'),
   chatSidebar: $('#chatSidebar'),
@@ -387,7 +419,6 @@ async function send(rawText) {
   els.chatSidebar.classList.remove('hidden');
   idleAnims.stop();
   els.idleRadial.classList.add('hidden');
-  els.powersRadial.classList.add('hidden');
   els.input.value = '';
   addMsg('user', text);
   showTyping(true);
@@ -796,7 +827,8 @@ function initSettings() {
   });
   els.btnShape.addEventListener('click', () => {
     els.settingsDlg.close();
-    openOnboarding(0);
+    buildShapeGrid(els.shapeGridQuick);
+    els.shapeDlg.showModal();
   });
 }
 
@@ -907,7 +939,7 @@ function registerSW() {
 
 const isOnboarded = () => store.get('Mochi.onboarded2', '0') === '1';
 
-const obLabels = ['Mulai', 'Lanjut', 'Mulai Ngobrol! 🎉'];
+const obLabels = ['Mulai', 'Lanjut', 'Lanjut', 'Mulai Ngobrol! 🎉'];
 let obStep = 0;
 
 function obRender() {
@@ -920,23 +952,27 @@ function obRender() {
   if (obStep === 1) setTimeout(() => els.obName.focus(), 80);
 }
 
-function obBuildShapeGrid() {
+function buildShapeGrid(container) {
   const current = blob.getShape();
-  els.shapeGrid.innerHTML = '';
+  container.innerHTML = '';
   for (const { id, label } of SHAPES_INFO) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'shape-card' + (id === current ? ' sel' : '');
     btn.innerHTML = `<svg viewBox="-75 -75 150 150"><path d="${shapePreviewPath(id)}"/></svg><span>${label}</span>`;
     btn.addEventListener('click', () => {
-      els.shapeGrid.querySelectorAll('.shape-card').forEach((c) => c.classList.remove('sel'));
+      container.querySelectorAll('.shape-card').forEach((c) => c.classList.remove('sel'));
       btn.classList.add('sel');
       blob.setShape(id);
       playPop();
       store.set('Mochi.shape', id);
     });
-    els.shapeGrid.appendChild(btn);
+    container.appendChild(btn);
   }
+}
+
+function obBuildShapeGrid() {
+  buildShapeGrid(els.shapeGrid);
 }
 
 function obFinish() {
@@ -966,6 +1002,23 @@ function openOnboarding(atStep = 0) {
 
 function initOnboarding() {
   els.obDots.innerHTML = obLabels.map(() => '<i></i>').join('');
+  if (els.obNotif) {
+    const syncObNotif = () => {
+      if (!('Notification' in window)) {
+        els.obNotif.textContent = '🔕 Notifikasi tidak didukung';
+        els.obNotif.disabled = true;
+        return;
+      }
+      const p = Notification.permission;
+      els.obNotif.textContent = p === 'granted' ? '✅ Notifikasi aktif' : p === 'denied' ? '🔕 Diblokir browser' : '🔔 Izinkan notifikasi';
+      els.obNotif.disabled = p === 'granted';
+    };
+    syncObNotif();
+    els.obNotif.addEventListener('click', async () => {
+      try { await Notification.requestPermission(); } catch {}
+      syncObNotif();
+    });
+  }
   els.obNext.addEventListener('click', () => {
     if (obStep < obLabels.length - 1) {
       obStep++;
@@ -998,8 +1051,8 @@ function initOnboarding() {
     setTimeout(() => openOnboarding(0), 500);
   }
   els.btnShapes.addEventListener('click', () => {
-    if (els.obDlg.open) return;
-    openOnboarding(0);
+    buildShapeGrid(els.shapeGridQuick);
+    els.shapeDlg.showModal();
   });
 }
 
@@ -1142,6 +1195,101 @@ function closeAllPanels() {
   showLauncher();
   hideBackdrop();
 }
+
+/* ── Tasks panel (Tugas & Pengingat) ── */
+function fmtReminderTime(d) {
+  const now = new Date();
+  const tmr = new Date(now); tmr.setDate(now.getDate() + 1);
+  const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (d.toDateString() === now.toDateString()) return `hari ini ${hhmm}`;
+  if (d.toDateString() === tmr.toDateString()) return `besok ${hhmm}`;
+  return `${d.getDate()}/${d.getMonth() + 1} ${hhmm}`;
+}
+
+function gcalUrl(r) {
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const start = new Date(r.dueAt);
+  const end = new Date(r.dueAt + 30 * 60000);
+  const ctz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta';
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(r.text)}&dates=${fmt(start)}/${fmt(end)}&details=${encodeURIComponent('Pengingat dari Mochi')}&ctz=${encodeURIComponent(ctz)}`;
+}
+
+function renderTasksPanel() {
+  const todos = brain.tasks.getTodos();
+  const reminders = brain.tasks.getReminders().slice().sort((a, b) => a.dueAt - b.dueAt);
+  const now = Date.now();
+  const pending = todos.filter(t => !t.done).length;
+  const upcoming = reminders.filter(r => r.dueAt > now).length;
+  els.taskStats.innerHTML = `<span><b>${pending}</b> tugas pending</span><span><b>${upcoming}</b> pengingat mendatang</span>`;
+  if ('Notification' in window) {
+    const p = Notification.permission;
+    const nb = document.createElement('button');
+    nb.className = 'task-notif';
+    nb.type = 'button';
+    nb.textContent = p === 'granted' ? '🔔 Aktif' : p === 'denied' ? '🔕 Diblokir' : '🔔 Izinkan notif';
+    if (p === 'denied') nb.title = 'Diblokir — aktifkan lewat ikon gembok di address bar → Site settings → Notifications';
+    if (p === 'default') {
+      nb.addEventListener('click', async () => {
+        try { await Notification.requestPermission(); } catch {}
+        renderTasksPanel();
+      });
+    }
+    els.taskStats.appendChild(nb);
+  }
+
+  els.todoList.innerHTML = '';
+  if (!todos.length) {
+    els.todoList.innerHTML = '<li class="task-empty">Belum ada tugas — ketik di kolom atas atau chat "todo …"</li>';
+  }
+  for (const t of todos) {
+    const li = document.createElement('li');
+    li.className = 'task-item' + (t.done ? ' done' : '');
+    li.innerHTML = `<button class="task-check" aria-label="Tandai">${t.done ? '☑' : '☐'}</button><span class="task-text"></span><button class="task-del" aria-label="Hapus">✕</button>`;
+    li.querySelector('.task-text').textContent = t.text;
+    li.querySelector('.task-check').addEventListener('click', () => {
+      brain.tasks.toggleTodoById(t.id);
+      playPop();
+      renderTasksPanel();
+    });
+    li.querySelector('.task-del').addEventListener('click', () => {
+      brain.tasks.deleteTodoById(t.id);
+      renderTasksPanel();
+    });
+    els.todoList.appendChild(li);
+  }
+
+  els.reminderList.innerHTML = '';
+  if (!reminders.length) {
+    els.reminderList.innerHTML = '<li class="task-empty">Belum ada pengingat — chat "ingatkan aku … jam …"</li>';
+  }
+  for (const r of reminders) {
+    const overdue = r.dueAt <= now;
+    const li = document.createElement('li');
+    li.className = 'task-item' + (overdue ? ' overdue' : '');
+    li.innerHTML = `<span class="task-time">${overdue ? '🔔' : '⏰'} ${fmtReminderTime(new Date(r.dueAt))}</span><span class="task-text"></span><button class="task-cal" title="Tambah ke Google Kalender" aria-label="Tambah ke Google Kalender">📅</button><button class="task-del" aria-label="Hapus">✕</button>`;
+    li.querySelector('.task-text').textContent = r.text;
+    li.querySelector('.task-cal').addEventListener('click', () => {
+      window.open(gcalUrl(r), '_blank', 'noopener');
+    });
+    li.querySelector('.task-del').addEventListener('click', () => {
+      brain.tasks.deleteReminderById(r.id);
+      renderTasksPanel();
+    });
+    els.reminderList.appendChild(li);
+  }
+}
+
+els.taskForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const raw = els.taskInput.value.trim();
+  if (!raw) return;
+  const res = brain.tasks.handleCommand(raw) || brain.tasks.handleCommand(`todo ${raw}`);
+  els.taskInput.value = '';
+  if (res) toast(res.text.split('\n')[0]);
+  blob.setState('happy', { holdMs: 1200 });
+  renderTasksPanel();
+});
 
 // Swipe-to-rotate + Drag-and-bounce physics
 // - Swipe (rotate in place) = blob spins, springs back
@@ -1513,13 +1661,10 @@ els.radialMenu.addEventListener('click', (e) => {
       setTimeout(() => els.input.focus(), 100);
     }
   }
+  else if (f === 'tasks') { openPanel('panelTasks'); renderTasksPanel(); }
   else if (f === 'pomodoro') { closeRadialMenu(); startBlobTimer(); }
-  else if (f === 'play') openPanel('panelPlay');
-  else if (f === 'entertain') openPanel('panelEntertain');
-  else if (f === 'powers') { closeRadialMenu(); els.powersRadial.classList.remove('hidden'); }
+  else if (f === 'fun') openPanel('panelFun');
   else if (f === 'idletest') { closeRadialMenu(); els.idleRadial.classList.remove('hidden'); }
-  else if (f === 'settings') { closeRadialMenu(); els.settingsDlg.showModal(); }
-  else if (f === 'music') { closeRadialMenu(); openPanel('panelMusic'); }
   else if (f === 'meditasi') { closeRadialMenu(); startMeditasi(); }
 });
 
@@ -1932,16 +2077,12 @@ els.stage.addEventListener('click', (e) => {
   if (!els.idleRadial.classList.contains('hidden') && !fromMainRadial && !e.target.closest('.srm-btn') && !e.target.closest('.srm-back') && e.target !== els.svg) {
     els.idleRadial.classList.add('hidden');
   }
-  if (!els.powersRadial.classList.contains('hidden') && !fromMainRadial && !e.target.closest('.srm-btn') && !e.target.closest('.srm-back') && e.target !== els.svg) {
-    els.powersRadial.classList.add('hidden');
-  }
 });
 
 // Document-level listener: close sub-radials when clicking outside (they're position:fixed now)
 document.addEventListener('click', (e) => {
   if (e.target.closest('.srm-btn') || e.target.closest('.srm-back') || e.target.closest('.rm-btn') || e.target === els.svg || e.target.closest('#blobLauncher')) return;
   if (!els.idleRadial.classList.contains('hidden')) els.idleRadial.classList.add('hidden');
-  if (!els.powersRadial.classList.contains('hidden')) els.powersRadial.classList.add('hidden');
   if (menuOpen) closeRadialMenu();
 });
 
@@ -2107,11 +2248,6 @@ document.querySelectorAll('[data-ent]').forEach((btn) => {
   });
 });
 
-/* ── Powers Radial ── */
-$('#powersRadialBack').addEventListener('click', () => {
-  els.powersRadial.classList.add('hidden');
-});
-
 /* ── Comet + Meteor Shower Effect ── */
 function spawnCometAndMeteors() {
   const fx = document.getElementById('fxLayer');
@@ -2161,19 +2297,18 @@ function spawnCometAndMeteors() {
   }
 }
 
-document.querySelectorAll('#powersRadial .srm-btn[data-fx]').forEach((btn) => {
+document.querySelectorAll('[data-fx]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const fx = btn.dataset.fx;
+    closeAllPanels();
     blob.triggerState(fx);
-    const labels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', notify:'🔔 Notify!' };
+    const labels = { burst:'💥 Burst!', comet:'☄️ Komet!', orbit:'🪐 Orbit!', swirl:'🌀 Swirl!', exclaim:'❗ Exclaim!', glow:'✨ Sinar!', notify:'🔔 Notify!' };
     showBubble(labels[fx] || '⚡', 2200);
 
     // Komet power: spawn comet + meteor shower
     if (fx === 'comet') {
       spawnCometAndMeteors();
     }
-
-    els.powersRadial.classList.add('hidden');
   });
 });
 
@@ -2284,11 +2419,10 @@ window.addEventListener('keydown', (e) => {
     els.installDlg.close?.();
     closeRadialMenu();
     els.idleRadial.classList.add('hidden');
-    els.powersRadial.classList.add('hidden');
   }
 });
 
-const APP_VERSION = 'v96';
+const APP_VERSION = 'v97';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
@@ -2310,8 +2444,8 @@ function injectManifest() {
     start_url: abs(location.pathname),
     scope: abs('./'),
     display: 'standalone',
-    background_color: '#f6f4ef',
-    theme_color: '#f6f4ef',
+    background_color: '#f4f0ff',
+    theme_color: '#f4f0ff',
     icons: [
       { src: abs('icons/icon-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: abs('icons/icon-512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -2329,6 +2463,7 @@ initTheme();
 initSettings();
 initInstall();
 initOnboarding();
+initDevModeToggle();
 restoreChat();
 greet();
 checkReminders();

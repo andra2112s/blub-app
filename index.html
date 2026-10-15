@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v96';
+      var V='v97';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('Mochi.activeSw')===V)return;
@@ -29,7 +29,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Mochi" />
-    <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#f4f0ff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#101014" media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="css/style.css" />
   </head>
@@ -92,14 +92,11 @@
               <div class="rm-drag"></div>
               <div class="rm-swipe-hint"></div>
               <button class="rm-btn" data-feature="chat" style="--i:0"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M4 5h16v12H8l-4 4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="11" r="1" fill="currentColor"/><circle cx="13" cy="11" r="1" fill="currentColor"/><circle cx="17" cy="11" r="1" fill="currentColor"/></svg><span>Chat</span></button>
-              <button class="rm-btn" data-feature="pomodoro" style="--i:1"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Pomodoro</span></button>
-              <button class="rm-btn" data-feature="play" style="--i:2"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M6 5l14 7-14 7z" fill="currentColor"/></svg><span>Play</span></button>
-              <button class="rm-btn" data-feature="entertain" style="--i:3"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M12 3l2.5 6 6.5.5-5 4.5 1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5l6.5-.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Entertain</span></button>
-              <button class="rm-btn" data-feature="powers" style="--i:4"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M13 2L4 14h7l-1 8 9-12h-7z" fill="currentColor"/></svg><span>Powers</span></button>
-              <button class="rm-btn" data-feature="idletest" style="--i:5"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
-              <button class="rm-btn" data-feature="music" style="--i:6"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 18V5l10-2v13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6" cy="18" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="16" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg><span>Music</span></button>
-              <button class="rm-btn" data-feature="settings" style="--i:7"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Atur</span></button>
-              <button class="rm-btn" data-feature="meditasi" style="--i:8"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4v-2M9 5L7 3M15 5l2-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Med</span></button>
+              <button class="rm-btn" data-feature="tasks" style="--i:1"><svg viewBox="0 0 24 24" class="rm-icon"><rect x="4" y="4" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 12l3 3 5-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Tugas</span></button>
+              <button class="rm-btn" data-feature="pomodoro" style="--i:2"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Pomodoro</span></button>
+              <button class="rm-btn" data-feature="meditasi" style="--i:3"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4v-2M9 5L7 3M15 5l2-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Med</span></button>
+              <button class="rm-btn" data-feature="fun" style="--i:4"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M12 3l2.5 6 6.5.5-5 4.5 1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5l6.5-.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Fun</span></button>
+              <button class="rm-btn" data-feature="idletest" data-dev style="--i:5"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
             </div>
 
             <div id="idleRadial" class="sub-radial hidden">
@@ -125,17 +122,6 @@
               <button class="srm-btn" data-idle="melt"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M8 3v8a4 4 0 0 0 8 0V3M8 19a2 2 0 1 0 4 0M14 17a2 2 0 1 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Melt</span></button>
               <button class="srm-btn" data-idle="peekaboo"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span>Peek</span></button>
               <button class="srm-btn" data-idle="knock"><svg viewBox="0 0 24 24" class="srm-icon"><rect x="5" y="3" width="14" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="12" r="1" fill="currentColor"/></svg><span>Knock</span></button>
-            </div>
-
-            <div id="powersRadial" class="sub-radial hidden">
-              <button class="srm-back" id="powersRadialBack">←</button>
-              <button class="srm-btn" data-fx="burst"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M12 2l2 7 7-2-5 5 5 5-7-2-2 7-2-7-7 2 5-5-5-5 7 2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Burst</span></button>
-              <button class="srm-btn" data-fx="comet"><svg viewBox="0 0 24 24" class="srm-icon"><circle cx="16" cy="8" r="3" fill="currentColor"/><path d="M14 11L4 21M16 12l-4 8M18 10l6 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Komet</span></button>
-              <button class="srm-btn" data-fx="orbit"><svg viewBox="0 0 24 24" class="srm-icon"><circle cx="12" cy="12" r="3" fill="currentColor"/><ellipse cx="12" cy="12" rx="9" ry="4" fill="none" stroke="currentColor" stroke-width="2" transform="rotate(-30 12 12)"/></svg><span>Orbit</span></button>
-              <button class="srm-btn" data-fx="swirl"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M12 4a8 8 0 1 1-8 8 6 6 0 0 1 6-6 4 4 0 0 1 4 4 2 2 0 0 1-2 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Swirl</span></button>
-              <button class="srm-btn" data-fx="exclaim"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M12 3l2 10h-4z" fill="currentColor"/><circle cx="12" cy="18" r="2" fill="currentColor"/></svg><span>Exclaim</span></button>
-              <button class="srm-btn" data-fx="glow"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M12 2v4m0 12v4M2 12h4m12 0h4m-3.5-6.5l-2.8 2.8m-7.8 7.8l2.8-2.8m7.8 0l2.8 2.8M7.3 7.3l2.8 2.8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Sinar</span></button>
-              <button class="srm-btn" data-fx="notify"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M6 16V10a6 6 0 0 1 12 0v6l2 2H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Notify</span></button>
             </div>
         </div>
 
@@ -218,13 +204,13 @@
           </div>
         </div>
 
-        <section class="feature-panel" id="panelPlay" hidden>
+        <section class="feature-panel" id="panelFun" hidden>
           <div class="panel-header">
-            <button class="btn-back" data-close="panelPlay">←</button>
-            <span class="panel-title">🎮 Play</span>
+            <button class="btn-back" data-close="panelFun">←</button>
+            <span class="panel-title">� Fun Zone</span>
           </div>
           <div class="panel-body">
-            <p class="pomo-label" style="padding:12px 16px 0;text-align:center;">Colek badanku atau pilih aksi di bawah!</p>
+            <div class="task-section-title">Main</div>
             <div class="play-grid">
               <button class="play-card" data-poke="1">👆 Poke Biasa</button>
               <button class="play-card" data-color="merah">🔴 Jadi Merah</button>
@@ -233,16 +219,7 @@
               <button class="play-card" data-color="ungu">🟣 Jadi Ungu</button>
               <button class="play-card" data-color="kuning">🟡 Jadi Kuning</button>
             </div>
-          </div>
-        </section>
-
-        <section class="feature-panel" id="panelEntertain" hidden>
-          <div class="panel-header">
-            <button class="btn-back" data-close="panelEntertain">←</button>
-            <span class="panel-title">🎭 Entertain</span>
-          </div>
-          <div class="panel-body">
-            <p class="pomo-label" style="padding:12px 16px 0;text-align:center;">Pilih hiburan buat kamu!</p>
+            <div class="task-section-title">Hiburan</div>
             <div class="play-grid">
               <button class="play-card" data-ent="joke">😂 Kasih Joke</button>
               <button class="play-card" data-ent="motivasi">💪 Motivasi</button>
@@ -251,21 +228,40 @@
               <button class="play-card" data-ent="puisi">📝 Puisi</button>
               <button class="play-card" data-ent="tantangan">🎯 Tantangan Seru</button>
             </div>
-          </div>
-        </section>
-
-        <section class="feature-panel" id="panelMusic" hidden>
-          <div class="panel-header">
-            <button class="btn-back" data-close="panelMusic">←</button>
-            <span class="panel-title">🎵 Music Dance</span>
-          </div>
-          <div class="panel-body">
-            <p class="pomo-label" id="musicStatus" style="padding:12px 16px 0;text-align:center;">Blob menari mengikuti irama musik!</p>
+            <div class="task-section-title">Powers</div>
+            <div class="play-grid">
+              <button class="play-card" data-fx="burst">💥 Burst</button>
+              <button class="play-card" data-fx="comet">☄️ Komet</button>
+              <button class="play-card" data-fx="orbit">🪐 Orbit</button>
+              <button class="play-card" data-fx="swirl">� Swirl</button>
+              <button class="play-card" data-fx="exclaim">❗ Exclaim</button>
+              <button class="play-card" data-fx="glow">✨ Sinar</button>
+              <button class="play-card" data-fx="notify">🔔 Notify</button>
+            </div>
+            <div class="task-section-title">Musik</div>
             <div class="play-grid">
               <button class="play-card" id="musicMic">🎤 Dengar dari Mic</button>
               <button class="play-card" id="musicStop">⏹️ Stop Dance</button>
             </div>
-            <p class="hint" style="padding:0 16px 12px;text-align:center;font-size:0.8rem;">Putar musik dari app lain, lalu pilih "Dengar dari Mic". Blob akan menari mengikuti beat & tempo!</p>
+            <p class="hint" id="musicStatus" style="padding:0 16px 14px;text-align:center;font-size:0.8rem;">Putar musik dari app lain, lalu "Dengar dari Mic" — blob menari ikut beat!</p>
+          </div>
+        </section>
+
+        <section class="feature-panel" id="panelTasks" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelTasks">←</button>
+            <span class="panel-title">📋 Tugas & Pengingat</span>
+          </div>
+          <div class="panel-body">
+            <div class="task-stats" id="taskStats"></div>
+            <form id="taskForm" class="task-form" autocomplete="off">
+              <input id="taskInput" type="text" maxlength="120" placeholder='Cth: "beli susu" atau "meeting jam 3 sore"' />
+              <button type="submit" aria-label="Tambah">＋</button>
+            </form>
+            <div class="task-section-title">Tugas</div>
+            <ul class="task-list" id="todoList"></ul>
+            <div class="task-section-title">Pengingat</div>
+            <ul class="task-list" id="reminderList"></ul>
           </div>
         </section>
 
@@ -317,9 +313,19 @@
           <p class="hint">Boleh dikosongkan — aku tetap memanggilmu "kak". Nama ini akan kuingat selamanya di perangkat ini.</p>
         </section>
         <section class="ob-step" data-step="2" hidden>
+          <h2>Aku juga asistenmu 🔔</h2>
+          <p class="hint">Bilang aja di chat — aku catat & ingatkan:</p>
+          <div class="install-step"><b>"todo beli susu"</b><span>masuk daftar tugasmu.</span></div>
+          <div class="install-step"><b>"ingatkan meeting jam 3"</b><span>aku ingatkan nanti.</span></div>
+          <div class="install-step"><b>"daftar tugas"</b><span>lihat semua tugas & pengingat.</span></div>
+          <button id="obNotif" type="button" class="btn primary ob-notif">🔔 Izinkan notifikasi</button>
+          <p class="hint ob-notif-hint">Biar pengingat muncul walau app di background.</p>
+        </section>
+        <section class="ob-step" data-step="3" hidden>
           <h2>Tips singkat</h2>
           <div class="install-step"><b>👆 Colek</b><span>badanku — lihat reaksinya!</span></div>
           <div class="install-step"><b>⌨️ Ngobrol</b><span>apa saja; aku hafal nama & hobimu.</span></div>
+          <div class="install-step"><b>📋 Tugas</b><span>tap blob → Tugas buat lihat & centang.</span></div>
           <div class="install-step"><b>⚡ Super power</b><span>coba ketik "meledak!" atau "jadi komet!".</span></div>
           <div class="install-step"><b>📦 Pasang</b><span>tombol "Pasang" agar seperti app asli di HP & PC.</span></div>
         </section>
@@ -329,6 +335,17 @@
           <button id="obNext" type="button" class="btn primary">Mulai</button>
         </div>
       </div>
+    </dialog>
+
+    <dialog id="shapeDlg" class="dlg">
+      <form method="dialog" class="dlg-body">
+        <h2>Ganti bentuk</h2>
+        <p class="hint">Tap bentuk — langsung ganti. Selesai kalau sudah cocok.</p>
+        <div id="shapeGridQuick" class="shape-grid"></div>
+        <div class="dlg-actions">
+          <button value="close" class="btn primary">Selesai</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="settingsDlg" class="dlg">

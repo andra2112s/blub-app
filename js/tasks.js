@@ -360,6 +360,25 @@ export function createTaskManager() {
     return null;
   }
 
+  function getTodos() { return loadTodos(); }
+  function getReminders() { return loadReminders(); }
+
+  function toggleTodoById(id) {
+    const todos = loadTodos();
+    const x = todos.find(t => t.id === id);
+    if (!x) return;
+    x.done = !x.done;
+    saveTodos(todos);
+  }
+
+  function deleteTodoById(id) {
+    saveTodos(loadTodos().filter(t => t.id !== id));
+  }
+
+  function deleteReminderById(id) {
+    saveReminders(loadReminders().filter(r => r.id !== id));
+  }
+
   function getCounts() {
     const todos = loadTodos();
     const reminders = loadReminders();
@@ -385,6 +404,11 @@ export function createTaskManager() {
     checkDueReminders,
     summarize,
     getCounts,
+    getTodos,
+    getReminders,
+    toggleTodoById,
+    deleteTodoById,
+    deleteReminderById,
     clearAll
   };
 }
