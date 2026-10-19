@@ -3,6 +3,34 @@
 const MEM_KEY = 'Mochi.memory';
 const HIST_KEY = 'Mochi.history';
 
+/* ── Tool definitions (function calling) — dipakai saat AI remote aktif ── */
+const TOOLS = [
+  { name: 'set_timer', description: 'Pasang timer hitung mundur.', parameters: { type: 'object', properties: { seconds: { type: 'number' }, label: { type: 'string' } }, required: ['seconds'] } },
+  { name: 'set_reminder', description: 'Pasang pengingat di waktu tertentu. "at" = waktu lokal pengguna, format YYYY-MM-DDTHH:MM. Gunakan repeat_monthly untuk tagihan/cicilan/jadwal rutin bulanan.', parameters: { type: 'object', properties: { at: { type: 'string' }, text: { type: 'string' }, repeat_monthly: { type: 'boolean', description: 'true jika pengingat berulang tiap bulan pada tanggal & jam yang sama (tagihan, cicilan, gajian)' }, repeat_count: { type: 'number', description: 'jumlah total pengulangan (mis. cicilan 12 kali); hanya dipakai bila repeat_monthly true; kosong = selamanya' } }, required: ['at', 'text'] } },
+  { name: 'add_todo', description: 'Tambah satu tugas ke daftar tugas.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
+  { name: 'list_todos', description: 'Lihat daftar tugas pengguna.', parameters: { type: 'object', properties: {} } },
+  { name: 'remember', description: 'Simpan satu fakta tahan lama tentang pengguna (preferensi, orang penting, jadwal rutin, tujuan). Jangan simpan kata sandi, nomor kartu, atau data sensitif.', parameters: { type: 'object', properties: { fact: { type: 'string' } }, required: ['fact'] } }
+];
+const OAI_TOOLS = TOOLS.map((t) => ({ type: 'function', function: t }));
+const MUTATING_TOOLS = new Set(['set_timer', 'set_reminder', 'add_todo', 'remember']);
+
+/* Tag [mood:...] dari AI → state blob */
+const MOOD_MAP = {
+  netral: 'idle', idle: 'idle', senang: 'happy', happy: 'happy', sedih: 'sad', sad: 'sad',
+  kaget: 'surpris', surpris: 'surpris', mikir: 'think', think: 'think', excite: 'excite',
+  semangat: 'excite', sleepy: 'sleepy', ngantuk: 'sleepy', bangga: 'proud', proud: 'proud',
+  malu: 'shy', shy: 'shy', bosan: 'bored', bored: 'bored', bingung: 'confuse',
+  confuse: 'confuse', takut: 'scare', scare: 'scare', ragu: 'doubt', doubt: 'doubt'
+};
+function parseMood(raw) {
+  const m = String(raw || '').match(/\[mood:(\w+)\]/i);
+  const text = String(raw || '').replace(/\s*\[mood:\w+\]\s*/gi, '').trim();
+  return { text, state: (m && MOOD_MAP[m[1].toLowerCase()]) || 'talk' };
+}
+
+const GAYA = { ringkas: 'singkat dan to the point', detail: 'rinci dan terstruktur', santai: 'santai seperti teman' };
+const tok = (s) => String(s).toLowerCase().match(/[a-z0-9]{3,}/g) || [];
+
 let PERSONA = detectPersona();
 
 function detectPersona() {
@@ -38,7 +66,8 @@ function pickN(arr, n) { const s = [...arr]; for (let i = s.length - 1; i > 0; i
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 export function createBrain() {
-  let mem = load(MEM_KEY, { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] });
+  const emptyMem = () => ({ name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [], role: '', focus: '', style: '' });
+  let mem = load(MEM_KEY, emptyMem());
   let history = [];
   try { history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch { history = []; }
   const tasks = createTaskManager();
@@ -63,8 +92,107 @@ export function createBrain() {
 
   function resolveApiConfig() {
     const cfg = getSettings();
+    if (cfg.provider === 'server') return { via: 'server' };
+    if (cfg.provider === 'anthropic' && cfg.key && cfg.model) return { ...cfg, owned: true, via: 'anthropic' };
+    if (cfg.provider === 'groq' && cfg.key && cfg.model)
+      return { ...cfg, url: cfg.url || 'https://api.groq.com/openai/v1', owned: true, via: 'custom' };
     if (cfg.url && cfg.key && cfg.model) return { ...cfg, owned: true, via: 'custom' };
     return { via: 'server' };
+  }
+
+  /* ── Fakta tahan lama: simpan, ranking relevansi, lupa ── */
+  function normalizeFacts() {
+    if (!Array.isArray(mem.facts)) mem.facts = [];
+    mem.facts = mem.facts.map((f) => (typeof f === 'string' ? { id: 0, t: f, at: Date.now() } : f));
+  }
+  function rememberFact(t) {
+    t = String(t || '').trim().slice(0, 200);
+    if (!t) return;
+    normalizeFacts();
+    if (mem.facts.some((f) => f.t.toLowerCase() === t.toLowerCase())) return;
+    mem.facts.push({ id: Date.now() + Math.floor(Math.random() * 1000), t, at: Date.now() });
+    mem.facts = mem.facts.slice(-300);
+    saveMem();
+  }
+  function forgetFact(id) {
+    normalizeFacts();
+    mem.facts = mem.facts.filter((f) => f.id !== id);
+    saveMem();
+  }
+  function relevantFacts(q, k = 8) {
+    normalizeFacts();
+    const qs = new Set(tok(q));
+    const now = Date.now();
+    return mem.facts
+      .map((f) => ({ f, s: tok(f.t).filter((w) => qs.has(w)).length * 3 + 1 / (1 + (now - f.at) / 864e5) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, k)
+      .map((x) => x.f.t);
+  }
+
+  /* ── Eksekusi tool yang dipanggil AI ── */
+  function execTool(name, args = {}) {
+    if (name === 'set_timer') {
+      const sec = Number(args.seconds);
+      if (!(sec > 0)) return 'gagal: durasi tidak valid';
+      tasks.addReminder(String(args.label || 'Timer selesai'), new Date(Date.now() + sec * 1000));
+      return 'timer terpasang';
+    }
+    if (name === 'set_reminder') {
+      const at = Date.parse(args.at);
+      if (!(at > Date.now())) return 'gagal: waktu tidak valid atau sudah lewat';
+      const r = tasks.addReminder(String(args.text || 'Pengingat'), new Date(at), {
+        repeat: args.repeat_monthly ? (args.repeat_count >= 1 ? { count: Math.floor(args.repeat_count) } : true) : false
+      });
+      return 'pengingat terpasang' + (r.repeat ? (r.repeat.total ? ` (bulanan, ${r.repeat.total} kali)` : ' (bulanan)') : '') + (r.headsUp?.length ? ` + peringatan awal ${r.headsUp.map((d) => 'H-' + d).join(', ')}` : '');
+    }
+    if (name === 'add_todo') {
+      const t = String(args.text || '').trim().slice(0, 120);
+      if (!t) return 'gagal: teks kosong';
+      tasks.addTodo(t);
+      return 'tugas ditambahkan';
+    }
+    if (name === 'list_todos') {
+      const todos = tasks.getTodos();
+      return todos.length
+        ? JSON.stringify(todos.map((t) => ({ text: t.text, selesai: !!t.done })))
+        : 'daftar kosong';
+    }
+    if (name === 'remember') {
+      rememberFact(args.fact);
+      return 'tersimpan';
+    }
+    return 'tool tidak dikenal';
+  }
+
+  function buildSysPrompt(q, customSys) {
+    const now = new Date();
+    const parts = [
+      customSys ||
+        `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, dan suka bertanya balik.`,
+      `Sekarang: ${now.toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })} (lokal ${new Date(now - now.getTimezoneOffset() * 6e4).toISOString().slice(0, 16)}).`
+    ];
+    const prof = [];
+    if (mem.name) prof.push('Nama: ' + mem.name);
+    if (mem.role) prof.push('Peran/kegiatan: ' + mem.role);
+    if (mem.focus) prof.push('Ingin dibantu soal: ' + mem.focus);
+    if (mem.style && GAYA[mem.style]) prof.push('Gaya jawaban: ' + GAYA[mem.style]);
+    if ((mem.likes || []).length) prof.push('Suka: ' + mem.likes.join(', '));
+    if (mem.from) prof.push('Dari: ' + mem.from);
+    if (prof.length) parts.push('Profil pengguna:\n' + prof.join('\n'));
+    const facts = relevantFacts(q);
+    if (facts.length) parts.push('Yang kamu ingat tentang pengguna:\n' + facts.map((f) => '- ' + f).join('\n'));
+    parts.push(
+      [
+        'Aturan:',
+        '- Jawab singkat (maks 3 kalimat) kecuali diminta detail.',
+        '- Kalau permintaan ambigu atau kurang data (waktu, nama, jumlah), tanya satu pertanyaan singkat dulu.',
+        '- Kalau tidak tahu atau tidak yakin, bilang terus terang. Jangan mengarang.',
+        '- Pakai tool saat pengguna minta timer, pengingat, atau tugas. Pakai remember saat pengguna menyebut fakta tahan lama tentang dirinya. Jangan menyimpan hal sepele.',
+        `- Awali jawaban akhir dengan [mood:idle|happy|sad|surpris|think|excite|sleepy|proud|shy|bored|confuse|scare].`
+      ].join('\n')
+    );
+    return parts.join('\n\n');
   }
 
   const jokes = [
@@ -197,7 +325,7 @@ export function createBrain() {
     if (ctxMatch) return ctxMatch;
 
     if (/lupa(ikan)? (semua|aku|semua ingatan)|reset (memori|ingatan)/.test(t)) {
-      mem = { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] };
+      mem = emptyMem();
       saveMem(); clearHist();
       return { text: 'Semua ingatan sudah terhapus! Kita mulai dari nol ya. Siapa nama kamu?', state: 'think' };
     }
@@ -709,28 +837,30 @@ export function createBrain() {
     return null;
   }
 
-  async function callApiServer(text, sysPrompt) {
-    const base = location.origin;
-    const res = await fetch(base + '/api/chat', {
+  async function callApiServer(msgs) {
+    const res = await fetch(location.origin + '/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages: [
-          { role: 'system', content: sysPrompt },
-          ...history.slice(-20),
-          { role: 'user', content: text }
-        ]
-      })
+      body: JSON.stringify({ messages: msgs, tools: OAI_TOOLS })
     });
     if (!res.ok) throw new Error('api-' + res.status);
     const data = await res.json();
     if (data.fallback) throw new Error('no-provider');
-    return data;
+    const calls = (data.toolCalls || []).map((c) => {
+      let args = {};
+      try { args = JSON.parse(c.function?.arguments || '{}'); } catch {}
+      return { id: c.id, name: c.function?.name, args };
+    });
+    return {
+      msg: { role: 'assistant', content: data.content || '', ...(calls.length ? { tool_calls: data.toolCalls } : {}) },
+      text: data.content || '',
+      calls,
+      remaining: data.remaining
+    };
   }
 
-  async function callApiDirect(text, cfg) {
+  async function callOpenAIDirect(msgs, cfg) {
     const base = cfg.url.replace(/\/+$/, '');
-    const sysPrompt = cfg.sys || `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik.`;
     const res = await fetch(base + '/chat/completions', {
       method: 'POST',
       headers: {
@@ -739,22 +869,84 @@ export function createBrain() {
       },
       body: JSON.stringify({
         model: cfg.model,
-        messages: [
-          { role: 'system', content: sysPrompt },
-          ...history.slice(-20),
-          { role: 'user', content: text }
-        ],
+        messages: msgs,
+        // Groq: tambahkan web search bawaan supaya jawaban pakai data internet asli
+        tools: [...OAI_TOOLS, ...(cfg.provider === 'groq' ? [{ type: 'browser_search' }] : [])],
         temperature: 0.85,
-        max_tokens: 300
+        max_tokens: 500
       })
     });
-    if (!res.ok) throw new Error('api-' + res.status);
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content?.trim() || '';
-    return { content, provider: 'custom', remaining: null };
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.error) throw new Error(`${res.status} ${data.error?.message || 'api-error'}`);
+    const m = data.choices?.[0]?.message || {};
+    const calls = (m.tool_calls || []).map((c) => {
+      let args = {};
+      try { args = JSON.parse(c.function?.arguments || '{}'); } catch {}
+      return { id: c.id, name: c.function?.name, args };
+    });
+    return { msg: m, text: (m.content || '').trim(), calls, remaining: null };
   }
 
-  const DEFAULT_SYS = () => `Kamu adalah ${PERSONA}, teman AI berbentuk blob hitam menggemaskan. Bicara santai dalam Bahasa Indonesia, hangat, singkat (maks 3 kalimat), dan suka bertanya balik. Kamu selalu ingat nama pengguna (${mem.name || 'tidak diketahui'}) dan hal-hal yang mereka sukai (${(mem.likes || []).join(', ') || 'belum diketahui'}), dan dari mana mereka (${mem.from || 'belum diketahui'}).`;
+  async function callAnthropic(msgs, system, cfg) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': cfg.key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        max_tokens: 1024,
+        system,
+        messages: msgs,
+        tools: TOOLS.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }))
+      })
+    });
+    const j = await res.json();
+    if (!res.ok) throw new Error(j.error?.message || 'api-' + res.status);
+    return {
+      msg: { role: 'assistant', content: j.content },
+      text: j.content.filter((b) => b.type === 'text').map((b) => b.text).join(''),
+      calls: j.content.filter((b) => b.type === 'tool_use').map((b) => ({ id: b.id, name: b.name, args: b.input })),
+      remaining: null
+    };
+  }
+
+  /* Agent loop: panggil AI, eksekusi tool calls, ulangi maks 5 putaran */
+  async function agentLoop(apiCfg, system) {
+    const via = apiCfg.via;
+    const msgs = via === 'anthropic'
+      ? history.slice(-20)
+      : [{ role: 'system', content: system }, ...history.slice(-20)];
+    let changed = false;
+    let remaining = null;
+
+    for (let i = 0; i < 5; i++) {
+      const out = via === 'anthropic'
+        ? await callAnthropic(msgs, system, apiCfg)
+        : via === 'custom'
+          ? await callOpenAIDirect(msgs, apiCfg)
+          : await callApiServer(msgs);
+      msgs.push(out.msg);
+      if (out.remaining !== undefined) remaining = out.remaining;
+      if (!out.calls.length) return { text: out.text, changed, remaining };
+
+      const results = out.calls.map((c) => {
+        if (MUTATING_TOOLS.has(c.name)) changed = true;
+        let r;
+        try { r = String(execTool(c.name, c.args)); } catch (e) { r = 'error: ' + e.message; }
+        return [c, r];
+      });
+      if (via === 'anthropic') {
+        msgs.push({ role: 'user', content: results.map(([c, r]) => ({ type: 'tool_result', tool_use_id: c.id, content: r })) });
+      } else {
+        results.forEach(([c, r]) => msgs.push({ role: 'tool', tool_call_id: c.id, content: r }));
+      }
+    }
+    return { text: 'Langkahnya kebanyakan, aku berhenti dulu. Coba pecah jadi permintaan lebih kecil.', changed, remaining };
+  }
 
   async function reply(text) {
     pushHist('user', text);
@@ -765,31 +957,47 @@ export function createBrain() {
       return taskRes;
     }
 
+    const remMatch = text.match(/^ingat\s+(?:bahwa|kalau)\s+(.+)/i);
+    if (remMatch) {
+      rememberFact(remMatch[1]);
+      const out = { text: 'Oke, kuingat! 🧠', state: 'happy', changed: true };
+      pushHist('assistant', out.text);
+      return out;
+    }
+
     const cfg = getSettings();
     const apiCfg = resolveApiConfig();
+    const system = buildSysPrompt(text, cfg.sys || null);
 
-    if (apiCfg.via === 'custom') {
+    // Error API milik user ditampilkan, jangan diam-diam jatuh ke otak lokal
+    let ownErr = '';
+    if (apiCfg.via === 'custom' || apiCfg.via === 'anthropic') {
       try {
-        const result = await callApiDirect(text, apiCfg);
-        pushHist('assistant', result.content);
-        return { text: result.content, state: 'talk' };
-      } catch {}
+        const result = await agentLoop(apiCfg, system);
+        const pm = parseMood(result.text);
+        pushHist('assistant', pm.text);
+        return { text: pm.text || '…', state: pm.state, changed: result.changed };
+      } catch (e) {
+        console.warn('[brain] AI gagal:', e);
+        ownErr = `⚠️ AI (${apiCfg.model}) gagal: ${String(e.message || e).slice(0, 160)}. Cek ⚙️ Pengaturan.\n\n`;
+      }
     }
 
     try {
-      const result = await callApiServer(text, cfg.sys || DEFAULT_SYS());
+      const result = await agentLoop({ via: 'server' }, system);
+      const pm = parseMood(result.text);
       const extra = (result.remaining !== null && result.remaining <= 5 && result.remaining >= 0)
         ? `\n\n💡 Sisa free AI hari ini: ${result.remaining}. Masukkan API Key sendiri di ⚙️ untuk unlimited!`
         : '';
-      pushHist('assistant', result.content);
-      return { text: result.content + extra, state: 'talk' };
+      pushHist('assistant', pm.text);
+      return { text: ownErr + pm.text + extra, state: pm.state, changed: result.changed };
     } catch {}
 
     await new Promise((r) => setTimeout(r, 300 + Math.min(text.length * 15, 500)));
     const local = localReply(text);
     local.text = interpText(local.text);
     pushHist('assistant', local.text);
-    return local;
+    return { ...local, text: ownErr + local.text };
   }
 
   return {
@@ -801,8 +1009,16 @@ export function createBrain() {
       mem.name = (n || '').trim().slice(0, 24);
       saveMem();
     },
+    setProfile(p = {}) {
+      if (typeof p.role === 'string') mem.role = p.role.trim().slice(0, 60);
+      if (typeof p.focus === 'string') mem.focus = p.focus.trim().slice(0, 80);
+      if (typeof p.style === 'string') mem.style = GAYA[p.style] ? p.style : '';
+      saveMem();
+    },
+    getFacts() { normalizeFacts(); return [...mem.facts]; },
+    forgetFact(id) { forgetFact(id); },
     clearAll() {
-      mem = { name: '', likes: [], from: '', mood: 'netral', topics: [], facts: [] };
+      mem = emptyMem();
       saveMem(); clearHist();
       tasks.clearAll();
     },

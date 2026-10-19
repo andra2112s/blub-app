@@ -4,6 +4,7 @@
   --surface-2: #efede6;
   --text: #1c1c22;
   --muted: #6f6f78;
+  --text-muted: var(--muted);
   --accent: #7c5cff;
   --accent-soft: rgba(124, 92, 255, 0.12);
   --border: rgba(28, 28, 34, 0.1);
@@ -806,17 +807,146 @@ body {
 
 .msg.bot {
   align-self: flex-start;
+  position: relative;
+  margin-left: 36px;
+  max-width: calc(82% - 36px);
   background: var(--bot-bubble);
   border: 1px solid var(--border);
   border-bottom-left-radius: 6px;
+  box-shadow: 0 2px 10px rgba(20, 20, 30, 0.05);
+}
+
+/* Avatar blob di tiap bubble bot */
+.msg.bot::before {
+  content: '';
+  position: absolute;
+  left: -34px;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8C62 8 72 14 80 24C88 34 92 46 90 58C88 70 82 80 72 86C62 92 50 94 38 90C26 86 16 78 12 66C8 54 8 42 14 30C20 18 38 8 50 8Z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8C62 8 72 14 80 24C88 34 92 46 90 58C88 70 82 80 72 86C62 92 50 94 38 90C26 86 16 78 12 66C8 54 8 42 14 30C20 18 38 8 50 8Z'/%3E%3C/svg%3E") center/contain no-repeat;
 }
 
 .msg.user {
   align-self: flex-end;
-  background: var(--user-bubble);
+  background: linear-gradient(135deg, #8f7bff 0%, #7c5cff 55%, #6a4ae0 100%);
   color: var(--user-text);
   border-bottom-right-radius: 6px;
+  box-shadow: 0 3px 12px rgba(124, 92, 255, 0.3);
 }
+
+/* Tabel markdown di bubble bot — kartu rounded gaya Mochi:
+   header gradient aksen, zebra row lembut, tanpa garis grid kaku */
+.msg .md-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 8px 0;
+  font-size: 0.82rem;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(124, 92, 255, 0.22);
+  box-shadow: 0 4px 14px rgba(124, 92, 255, 0.1);
+}
+.msg .md-table th,
+.msg .md-table td {
+  padding: 7px 12px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  border: none;
+}
+/* Bubble berisi tabel boleh selebar penuh chat — kolom tidak kehimpit */
+.msg.bot:has(.md-table) { max-width: calc(100% - 36px); }
+/* Kolom punya lebar minimum supaya kata tidak terpotong aneh di layar sempit;
+   kalau tetap tidak muat, tabel scroll horizontal (bukan memecah kata) */
+.msg .md-table td { min-width: 80px; }
+/* Tombol maps di dalam tabel dibuat lebih kecil agar tidak menghimpit kolom */
+.msg .md-table a.md-btn {
+  font-size: 0.72rem;
+  padding: 3px 9px;
+}
+/* Sel terakhir (kolom tombol) tidak perlu min-width lebar */
+.msg .md-table td:last-child { min-width: 0; }
+.msg .md-table th {
+  background: linear-gradient(135deg, #8f7bff 0%, #6a4ae0 100%);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.msg .md-table td { border-top: 1px solid var(--border); }
+.msg .md-table tr:nth-child(even) td { background: var(--accent-soft); }
+/* Mobile: tabel berubah jadi tumpukan kartu — tiap baris = 1 kartu rounded,
+   tiap sel tampil "LABEL: nilai" (label dari header kolom via data-label) */
+@media (max-width: 719px) {
+  .msg .md-table { border: none; box-shadow: none; overflow: visible; }
+  .msg .md-table tr:first-child { display: none; }
+  .msg .md-table tr {
+    display: block;
+    background: var(--surface);
+    border: 1px solid rgba(124, 92, 255, 0.22);
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(124, 92, 255, 0.1);
+    margin: 8px 0;
+    padding: 4px 0;
+  }
+  .msg .md-table td,
+  .msg .md-table tr:nth-child(even) td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 5px 12px;
+    border-top: none;
+    background: none;
+  }
+  .msg .md-table td + td { border-top: 1px dashed var(--border); }
+  .msg .md-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent);
+    opacity: 0.75;
+  }
+}
+
+.msg code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 6px;
+  font-size: 0.88em;
+}
+.msg a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+/* Link maps → tombol pill, URL disembunyikan */
+.msg a.md-btn {
+  display: inline-block;
+  background: var(--accent-soft);
+  border: 1px solid rgba(124, 92, 255, 0.3);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  padding: 4px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  margin: 2px 0;
+  white-space: nowrap;
+  transition: transform 0.12s ease, background 0.15s;
+}
+.msg a.md-btn:active { transform: scale(0.94); }
 
 .typing {
   align-self: flex-start;
@@ -888,11 +1018,27 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 10px 14px 6px;
   border-bottom: 1px solid var(--border);
 }
-.chat-header-title { font-weight: 700; font-size: 0.95rem; }
-.chat-close {
+.chat-header-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* Siluet blob mini — dipakai di header chat & avatar bubble bot */
+.chat-avatar {
+  width: 22px;
+  height: 22px;
+  background: var(--accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8C62 8 72 14 80 24C88 34 92 46 90 58C88 70 82 80 72 86C62 92 50 94 38 90C26 86 16 78 12 66C8 54 8 42 14 30C20 18 38 8 50 8Z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8C62 8 72 14 80 24C88 34 92 46 90 58C88 70 82 80 72 86C62 92 50 94 38 90C26 86 16 78 12 66C8 54 8 42 14 30C20 18 38 8 50 8Z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+.chat-mini { margin-left: auto; }
+.chat-close, .chat-mini, .chat-max {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -906,7 +1052,9 @@ body {
   justify-content: center;
   transition: background 0.15s;
 }
-.chat-close:hover, .chat-close:active { background: var(--border); }
+.chat-close:hover, .chat-close:active,
+.chat-mini:hover, .chat-mini:active,
+.chat-max:hover, .chat-max:active { background: var(--border); }
 .chat-sidebar .chips {
   padding: 8px 12px 4px;
   overflow-x: auto;
@@ -927,11 +1075,54 @@ body {
 }
 .chat-sidebar .composer {
   border-top: none;
-  padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  box-shadow: 0 -2px 12px rgba(20, 20, 30, 0.05);
 }
+.chat-sidebar .composer .btn.send {
+  background: linear-gradient(135deg, #8f7bff 0%, #6a4ae0 100%);
+  box-shadow: 0 3px 10px rgba(124, 92, 255, 0.4);
+}
+.chat-sidebar .composer .btn.send:active { transform: scale(0.9); }
 .chat-sidebar .composer input {
   padding: 10px 14px;
   font-size: 0.92rem;
+}
+
+/* Drag handle di atas panel — resize tinggi chat (layout kolom) */
+.chat-handle {
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.chat-handle:active { cursor: grabbing; }
+.chat-handle i {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  pointer-events: none;
+}
+/* Saat drag: log tidak ikut smooth-scroll, teks tidak ke-select */
+.chat-sidebar.dragging .log { scroll-behavior: auto; }
+body.chat-dragging { user-select: none; }
+
+/* Minimized: hanya handle + header yang tampak */
+.chat-sidebar.mini .log,
+.chat-sidebar.mini .composer { display: none; }
+
+/* Layar penuh: sembunyikan panggung, chat mengisi seluruh area.
+   :has menjaga stage tetap tampil saat chat sedang ditutup. */
+.main-content.chat-full:has(.chat-sidebar:not(.hidden):not(.mini)) .stage-wrap { display: none; }
+.main-content.chat-full .chat-sidebar:not(.mini) {
+  flex: 1 1 auto;
+  height: auto !important;
+  min-height: 0;
 }
 
 .dlg {
@@ -954,7 +1145,7 @@ body {
 
 .dlg label { font-size: 0.82rem; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 5px; }
 
-.dlg input, .dlg textarea {
+.dlg input, .dlg textarea, .dlg select {
   font: inherit;
   font-size: 0.9rem;
   padding: 10px 12px;
@@ -965,7 +1156,7 @@ body {
   outline: none;
 }
 
-.dlg input:focus, .dlg textarea:focus { border-color: var(--accent); }
+.dlg input:focus, .dlg textarea:focus, .dlg select:focus { border-color: var(--accent); }
 
 .dlg-actions {
   display: flex;
@@ -1257,6 +1448,12 @@ body {
     max-height: 100%;
     animation: none;
   }
+  /* Handle resize hanya untuk layout kolom (<720px) */
+  .chat-handle { display: none; }
+  /* Mini di desktop: strip header saja di atas kolom samping */
+  .chat-sidebar.mini { align-self: flex-start; height: auto; }
+  /* Layar penuh di desktop: chat melebar menggantikan panggung */
+  .main-content.chat-full .chat-sidebar:not(.mini) { flex: 1 1 auto; width: auto; }
 }
 
 /* ── Radial Menu ── */
@@ -1278,6 +1475,9 @@ body {
   transition: transform 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
+/* Launcher selalu fixed di tengah bawah — sembunyikan selama chat terbuka
+   (termasuk strip mini) supaya tidak menimpa header/composer */
+body:has(.chat-sidebar:not(.hidden)) .blob-launcher { display: none; }
 .blob-launcher:hover { transform: translateX(-50%) scale(1.1); }
 .blob-launcher:active { transform: translateX(-50%) scale(0.95); }
 .blob-launcher svg { display: block; }
@@ -1984,32 +2184,252 @@ body {
   line-height: 1;
   color: var(--text);
 }
-.task-text { flex: 1; font-size: 0.9rem; word-break: break-word; }
-.task-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+.task-text { flex: 1; font-size: 0.9rem; word-break: break-word; cursor: text; }
+.task-edit {
+  flex: 1;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
 .task-del {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--muted);
   cursor: pointer;
   font-size: 0.85rem;
   padding: 4px;
   flex-shrink: 0;
 }
 .task-del:active { color: var(--text); }
-.task-cal {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.95rem;
-  padding: 2px;
-  flex-shrink: 0;
-}
 .task-empty {
   padding: 8px 12px;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--muted);
   font-style: italic;
 }
+.task-empty-big {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.task-empty-big .big { font-size: 2rem; margin-bottom: 6px; }
+.task-empty-big .small { margin-top: 6px; font-size: 0.8rem; font-weight: 400; color: var(--muted); }
+
+/* Tabs (Pengingat / Tugas) */
+.task-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px 4px;
+}
+.task-tab {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.task-tab.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: transparent;
+}
+.task-tab-count {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  line-height: 16px;
+}
+.task-tab:not(.on) .task-tab-count { background: var(--border); color: var(--muted); }
+.task-tab-count:empty { display: none; }
+
+.task-view { display: flex; flex-direction: column; }
+.task-view[hidden] { display: none; }
+.task-section-inline { padding: 10px 4px 4px; }
+
+/* FAB di bawah panel (sticky, bukan fixed) */
+.task-fab {
+  position: sticky;
+  bottom: 0;
+  margin: auto 16px calc(8px + env(safe-area-inset-bottom));
+  padding: 12px;
+  border: none;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(124, 92, 255, 0.35);
+  transition: transform 0.12s;
+  flex-shrink: 0;
+}
+.task-fab:active { transform: scale(0.97); }
+
+/* Kartu pengingat terkelompok */
+.rem-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  animation: taskItemIn 0.18s ease;
+}
+.rem-card.soon { border-color: var(--accent); }
+.rem-card.overdue { border-color: #e0a53f; }
+.rem-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rem-ico { flex-shrink: 0; }
+.rem-text { flex: 1; font-size: 0.92rem; font-weight: 600; word-break: break-word; }
+.rem-recur {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.rem-when { font-size: 0.8rem; color: var(--muted); }
+.rem-card.overdue .rem-when { color: #d98a1f; font-weight: 600; }
+.rem-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.rem-chip {
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.rem-chip.past { opacity: 0.45; }
+.rem-chip.next { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.rem-actions { display: flex; gap: 6px; }
+.rem-actions button {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rem-actions button:active { transform: scale(0.95); }
+
+/* Menu ⋯ pakai <details> (tanpa JS popover) */
+.rem-menu { position: relative; flex-shrink: 0; }
+.rem-menu summary {
+  list-style: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rem-menu summary::-webkit-details-marker { display: none; }
+.rem-menu summary:hover { background: var(--border); }
+.rem-menu-pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 5;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.rem-menu-pop button {
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.rem-menu-pop button:hover { background: var(--surface-2); }
+
+/* Dialog pengingat */
+.rem-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rem-quick button {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.rem-quick button:active { transform: scale(0.95); border-color: var(--accent); }
+.rem-dt {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.rem-toggle {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400 !important;
+  font-size: 0.85rem !important;
+  color: var(--text) !important;
+}
+.rem-toggle input { width: auto; }
+.rem-toggle .hint { font-size: 0.75rem; }
+.rem-preview {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-height: 1.2em;
+}
+.rem-preview.bad { color: #d9534f; font-weight: 600; }
+
+.task-clear-done {
+  align-self: flex-start;
+  margin: 0 16px 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.task-clear-done:hover { color: var(--accent); border-color: var(--accent); }
 
 /* Fun panel: grids don't stretch, sections stack */
 #panelFun .play-grid { flex: none; padding-top: 8px; padding-bottom: 8px; }

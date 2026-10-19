@@ -54,7 +54,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, model: customModel } = req.body || {};
+  const { messages, model: customModel, tools } = req.body || {};
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'messages array required' });
   }
@@ -81,8 +81,9 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: customModel || provider.model,
         messages,
+        ...(Array.isArray(tools) && tools.length ? { tools } : {}),
         temperature: 0.85,
-        max_tokens: 300
+        max_tokens: 500
       })
     });
 
@@ -93,10 +94,12 @@ export default async function handler(req, res) {
     }
 
     const data = await apiRes.json();
-    const content = data.choices?.[0]?.message?.content?.trim() || '';
+    const msg = data.choices?.[0]?.message || {};
+    const content = (msg.content || '').trim();
 
     return res.status(200).json({
       content,
+      toolCalls: msg.tool_calls || [],
       provider: provider.provider,
       remaining: provider.owned ? null : remaining,
       owned: provider.owned

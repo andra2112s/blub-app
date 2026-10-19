@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v98';
+      var V='v123';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('Mochi.activeSw')===V)return;
@@ -123,22 +123,14 @@
               <button class="srm-btn" data-idle="peekaboo"><svg viewBox="0 0 24 24" class="srm-icon"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg><span>Peek</span></button>
               <button class="srm-btn" data-idle="knock"><svg viewBox="0 0 24 24" class="srm-icon"><rect x="5" y="3" width="14" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="15" cy="12" r="1" fill="currentColor"/></svg><span>Knock</span></button>
             </div>
-        </div>
 
         <aside class="chat-sidebar hidden" id="chatSidebar">
+          <div class="chat-handle" id="chatHandle" aria-hidden="true"><i></i></div>
           <div class="chat-header">
-            <span class="chat-header-title">💬 Chat</span>
+            <span class="chat-header-title"><i class="chat-avatar" aria-hidden="true"></i>Mochi</span>
+            <button class="chat-mini" id="chatMini" aria-label="Perkecil chat" title="Perkecil chat">–</button>
+            <button class="chat-max" id="chatMax" aria-label="Layar penuh" title="Layar penuh">⛶</button>
             <button class="chat-close" id="chatClose" aria-label="Tutup chat">✕</button>
-          </div>
-          <div id="chips" class="chips" aria-label="Saran cepat">
-            <button class="chip">halo!</button>
-            <button class="chip">kamu bisa apa?</button>
-            <button class="chip">namaku ...</button>
-            <button class="chip">meledak!</button>
-            <button class="chip">jadi komet!</button>
-            <button class="chip">mode planet!</button>
-            <button class="chip">jadi ungu</button>
-            <button class="chip">ceritain joke dong</button>
           </div>
           <div id="log" class="log" aria-live="polite"></div>
           <form id="composer" class="composer" autocomplete="off">
@@ -241,9 +233,12 @@
             <div class="task-section-title">Musik</div>
             <div class="play-grid">
               <button class="play-card" id="musicMic">🎤 Dengar dari Mic</button>
+              <label class="play-card" for="musicFile" style="cursor:pointer;display:flex;align-items:center;justify-content:center;">📂 Putar File</label>
               <button class="play-card" id="musicStop">⏹️ Stop Dance</button>
             </div>
-            <p class="hint" id="musicStatus" style="padding:0 16px 14px;text-align:center;font-size:0.8rem;">Putar musik dari app lain, lalu "Dengar dari Mic" — blob menari ikut beat!</p>
+            <input id="musicFile" type="file" accept="audio/*" hidden />
+            <audio id="musicAudio" controls style="width:100%;margin-top:8px;" hidden></audio>
+            <p class="hint" id="musicStatus" style="padding:0 16px 14px;text-align:center;font-size:0.8rem;">Putar musik dari app lain lalu "Dengar dari Mic", atau pilih file musik — blob menari ikut beat!</p>
           </div>
         </section>
 
@@ -254,14 +249,22 @@
           </div>
           <div class="panel-body">
             <div class="task-stats" id="taskStats"></div>
-            <form id="taskForm" class="task-form" autocomplete="off">
-              <input id="taskInput" type="text" maxlength="120" placeholder='Cth: "beli susu" atau "meeting jam 3 sore"' />
-              <button type="submit" aria-label="Tambah">＋</button>
-            </form>
-            <div class="task-section-title">Tugas</div>
-            <ul class="task-list" id="todoList"></ul>
-            <div class="task-section-title">Pengingat</div>
-            <ul class="task-list" id="reminderList"></ul>
+            <div class="task-tabs" role="tablist">
+              <button class="task-tab on" data-tab="reminders" role="tab">⏰ Pengingat <span class="task-tab-count" id="tabCountRem"></span></button>
+              <button class="task-tab" data-tab="todos" role="tab">☐ Tugas <span class="task-tab-count" id="tabCountTodo"></span></button>
+            </div>
+            <div class="task-view" id="viewReminders">
+              <ul class="task-list" id="reminderList"></ul>
+            </div>
+            <div class="task-view" id="viewTodos" hidden>
+              <form id="todoForm" class="task-form" autocomplete="off">
+                <input id="todoInput" type="text" maxlength="120" placeholder="Tambah tugas…" />
+                <button type="submit" aria-label="Tambah">＋</button>
+              </form>
+              <ul class="task-list" id="todoList"></ul>
+              <button type="button" class="task-clear-done" id="todoClearDone" hidden>Bersihkan yang selesai</button>
+            </div>
+            <button type="button" class="task-fab" id="taskAddBtn" aria-label="Pengingat baru">＋ Pengingat</button>
           </div>
         </section>
 
@@ -308,9 +311,17 @@
           <div id="shapeGrid" class="shape-grid"></div>
         </section>
         <section class="ob-step" data-step="1" hidden>
-          <h2>Nama kamu siapa?</h2>
-          <input id="obName" type="text" placeholder="mis. Rian, Sari, Bang Jack…" maxlength="24" />
-          <p class="hint">Boleh dikosongkan — aku tetap memanggilmu "kak". Nama ini akan kuingat selamanya di perangkat ini.</p>
+          <h2>Kenalan dulu</h2>
+          <input id="obName" type="text" placeholder="Nama panggilan — mis. Rian, Sari…" maxlength="24" />
+          <input id="obRole" type="text" placeholder="Kegiatanmu — mis. mahasiswa, pemilik toko" maxlength="60" />
+          <input id="obFocus" type="text" placeholder="Paling ingin dibantu soal apa? mis. jadwal, belajar" maxlength="80" />
+          <select id="obStyle">
+            <option value="">Gaya jawaban: bebas</option>
+            <option value="ringkas">Singkat &amp; to the point</option>
+            <option value="detail">Rinci &amp; terstruktur</option>
+            <option value="santai">Santai seperti teman</option>
+          </select>
+          <p class="hint">Boleh dikosongkan — tapi makin aku kenal kamu, makin pas jawabanku. Semua tersimpan di perangkat ini.</p>
         </section>
         <section class="ob-step" data-step="2" hidden>
           <h2>Aku juga asistenmu 🔔</h2>
@@ -337,6 +348,34 @@
       </div>
     </dialog>
 
+    <dialog id="remDlg" class="dlg rem">
+      <form method="dialog" class="dlg-body" id="remForm">
+        <h2 id="remTitle">Pengingat baru</h2>
+        <label>Apa yang diingatkan?
+          <input id="remText" type="text" maxlength="120" required placeholder="cth: bayar listrik" />
+        </label>
+        <div class="rem-quick" id="remQuick">
+          <button type="button" data-q="1h">1 jam lagi</button>
+          <button type="button" data-q="tonight">Nanti malam</button>
+          <button type="button" data-q="tomorrow">Besok pagi</button>
+          <button type="button" data-q="nextweek">Minggu depan</button>
+          <button type="button" data-q="d25">Tgl 25</button>
+        </div>
+        <div class="rem-dt">
+          <label>Tanggal <input id="remDate" type="date" required /></label>
+          <label>Jam <input id="remTime" type="time" required /></label>
+        </div>
+        <label class="rem-toggle"><input id="remHeadsUp" type="checkbox" checked /> Peringatan awal H-5 · H-3 · H-2 · H-1 <span class="hint" id="remHeadsUpHint"></span></label>
+        <label class="rem-toggle"><input id="remRepeat" type="checkbox" /> 🔁 Ulangi tiap bulan (untuk tagihan/cicilan)</label>
+        <label class="rem-toggle rem-count" id="remCountWrap" hidden>Berhenti setelah <input id="remCount" type="number" min="1" max="120" inputmode="numeric" placeholder="∞" style="width:70px" /> kali (kosong = selamanya)</label>
+        <p class="rem-preview" id="remPreview"></p>
+        <div class="dlg-actions">
+          <button type="button" class="btn ghost" id="remCancel">Batal</button>
+          <button type="submit" class="btn primary" id="remSave">Simpan</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="shapeDlg" class="dlg">
       <form method="dialog" class="dlg-body">
         <h2>Ganti bentuk</h2>
@@ -355,6 +394,15 @@
           Mochi jalan <b>offline</b> pakai otak lokal. Aktifkan AI pintar lewat SumoPod —
           Base URL & Model sudah terisi, tinggal masukkan API Key!
         </p>
+        <label>Mesin AI
+          <select id="setProvider">
+            <option value="">Otomatis (server gratis / kustom)</option>
+            <option value="server">Server gratis saja</option>
+            <option value="openai">OpenAI-compatible</option>
+            <option value="groq">Groq</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </label>
         <label>Base URL
           <input id="setUrl" type="url" placeholder="https://ai.sumopod.com/v1" />
         </label>
@@ -387,7 +435,11 @@
           <input id="setTtsEnabled" type="checkbox" style="width:auto;">
           <span>Pakai MiMo TTS (nonaktif = pakai suara browser)</span>
         </label>
+        <hr style="margin:12px 0;border:none;border-top:1px solid var(--border);">
+        <p class="hint"><b>🧠 Yang aku ingat tentang kamu</b> — ditambah otomatis dari obrolan, atau ketik "ingat bahwa …".</p>
+        <ul class="task-list" id="memList"></ul>
         <div class="dlg-actions">
+          <button id="btnProfile" type="button" class="btn ghost">👤 Ubah profil</button>
           <button id="btnShape" type="button" class="btn ghost">🎨 Ganti bentuk</button>
           <button id="setReset" type="button" class="btn ghost">Hapus memori</button>
           <button value="cancel" class="btn ghost">Tutup</button>

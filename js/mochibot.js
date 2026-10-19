@@ -84,13 +84,24 @@ const MOUTH_SHAPES = {
   somnolent:  { type: 'line',  w: 12, h: 0 }
 };
 
+/* Override bentuk mata per ekspresi — menggantikan kapsul engine yang
+   terlalu kaku (robot) atau terlalu tipis (coretan) untuk ekspresi ini.
+   Dipakai dengan matriks posisi/rotasi engine apa adanya. */
+const EYE_D_OVERRIDE = {
+  // Menangis: mata terpejam melengkung
+  triste:  'M -8 1.5 Q 0 -8 8 1.5 Q 0 -3 -8 1.5 Z',
+  // Senang/tertawa: mata tertutup ∩∩ yang gemuk (gaya ^_^)
+  heureux: 'M -9.5 3 Q 0 -11 9.5 3 Q 0 -4 -9.5 3 Z',
+  hilare:  'M -9.5 3 Q 0 -11 9.5 3 Q 0 -4 -9.5 3 Z'
+};
+
 function mouthPath(shape) {
   const { type, w, h } = shape;
   const hw = w / 2;
   switch (type) {
     case 'smile': return `M ${-hw} 0 Q 0 ${-h} ${hw} 0`;
     case 'frown': return `M ${-hw} 0 Q 0 ${h} ${hw} 0`;
-    case 'line':  return `M ${-hw} 0 L ${hw} 0`;
+    case 'line':  return `M ${-hw} 0 Q 0 1.5 ${hw} 0`;
     case 'open':  return `M ${-hw * 0.5} 0 A ${hw * 0.5} ${h} 0 1 0 ${hw * 0.5} 0 A ${hw * 0.5} ${h} 0 1 0 ${-hw * 0.5} 0`;
     case 'smirk': return `M ${-hw} 0 Q 0 ${-h} ${hw * 0.5} ${-h * 0.5}`;
     case 'wavy':  return `M ${-hw} 0 Q ${-hw * 0.5} ${h} 0 0 Q ${hw * 0.5} ${-h} ${hw} 0`;
@@ -323,7 +334,7 @@ export class BlobCharacter {
         node.setAttribute('d', '');
         continue;
       }
-      node.setAttribute('d', eye.d);
+      node.setAttribute('d', EYE_D_OVERRIDE[this.currentExpr] || eye.d);
       node.setAttribute('transform', eye.matrix);
       node.setAttribute('opacity', eye.alpha.toFixed(2));
       node.setAttribute('fill', this.eyeColorCache);
@@ -346,10 +357,19 @@ export class BlobCharacter {
       if (eyePos.length === 0) {
         this.mouthEl.setAttribute('d', '');
       } else {
-        const cx = eyePos.reduce((s, p) => s + p.x, 0) / eyePos.length;
-        const cy = eyePos.reduce((s, p) => s + p.y, 0) / eyePos.length + 26;
         // Average rotation of both eyes
         const avgRot = eyePos.reduce((s, p) => s + p.rot, 0) / eyePos.length;
+        const midX = eyePos.reduce((s, p) => s + p.x, 0) / eyePos.length;
+        const midY = eyePos.reduce((s, p) => s + p.y, 0) / eyePos.length;
+        // Mulut ditaruh tegak lurus garis antar-mata — tetap di tengah sumbu
+        // wajah walau kepala miring atau satu mata lebih tinggi dari yang lain
+        let offA = Math.PI / 2; // lurus ke bawah (satu mata / sejajar)
+        if (eyePos.length >= 2) {
+          const [p1, p2] = eyePos[0].x <= eyePos[1].x ? eyePos : [eyePos[1], eyePos[0]];
+          offA = Math.atan2(p2.y - p1.y, p2.x - p1.x) + Math.PI / 2;
+        }
+        const cx = midX + Math.cos(offA) * 26;
+        const cy = midY + Math.sin(offA) * 26;
         let mouthW = 14;
         if (eyePos.length >= 2) {
           const sep = Math.abs(eyePos[1].x - eyePos[0].x);

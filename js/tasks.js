@@ -1,6 +1,9 @@
 const TODOS_KEY = 'Mochi.todos';
 const REMINDERS_KEY = 'Mochi.reminders';
 
+// Peringatan awal otomatis: H-5, H-3, H-2, H-1 sebelum jatuh tempo
+const HEADS_UP_DAYS = [5, 3, 2, 1];
+
 function uid() {
   return Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
 }
@@ -44,6 +47,13 @@ function parseTime(text) {
     due = new Date(now.getTime() + 5 * 60000);
     task = task.replace(/sebentar lagi/, '').trim();
     return { due, task };
+  }
+
+  const dayMonth = parseDayMonth(text);
+  if (dayMonth) {
+    let task = text;
+    for (const part of dayMonth.consumed) task = task.replace(part, '');
+    return { due: dayMonth.due, task: task.trim() };
   }
 
   const nantiMatch = text.match(/nanti\s+(pagi|siang|sore|malam|subuh)/);
@@ -104,6 +114,52 @@ function parseTime(text) {
   return { due: null, task: text };
 }
 
+const MONTHS = {
+  januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+  juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+  jan: 0, feb: 1, mar: 2, apr: 3, jun: 5, jul: 6, agu: 7, ags: 7,
+  sep: 8, okt: 9, nov: 10, des: 11
+};
+
+function parseDayMonth(text) {
+  const now = new Date();
+  let m = text.match(/(?:tgl|tanggal)\s+(\d{1,2})(?:\s+([a-zA-Z]+))?/);
+  let day = null, month, base;
+  if (m) {
+    day = parseInt(m[1]);
+    month = m[2] ? MONTHS[m[2].toLowerCase()] : undefined;
+    // Kata setelah angka yang bukan bulan ("tgl 15 nanti") tidak ikut terpotong
+    base = m[2] && month === undefined ? m[0].slice(0, m[0].lastIndexOf(m[2])).trimEnd() : m[0];
+  } else {
+    m = text.match(/\b(\d{1,2})\s+(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|agu|ags|sep|okt|nov|des)\b/i);
+    if (m) {
+      day = parseInt(m[1]);
+      month = MONTHS[m[2].toLowerCase()];
+      base = m[0];
+    }
+  }
+  if (!day || day > 31) return null;
+
+  const parts = [base];
+  let hh = 8, mm = 0;
+  const tm = text.match(/(?:jam|pukul)\s+(\d{1,2})(?:[.:](\d{1,2}))?\s*(pagi|siang|sore|malam|subuh)?/);
+  if (tm) {
+    hh = applyPeriod(parseInt(tm[1]), tm[3]);
+    mm = parseInt(tm[2] || '0');
+    parts.push(tm[0]);
+  }
+
+  let target;
+  if (month !== undefined) {
+    target = new Date(now.getFullYear(), month, day, hh, mm, 0, 0);
+    if (target <= now) target.setFullYear(target.getFullYear() + 1);
+  } else {
+    target = new Date(now.getFullYear(), now.getMonth(), day, hh, mm, 0, 0);
+    if (target <= now) target.setMonth(target.getMonth() + 1);
+  }
+  return { due: target, consumed: parts };
+}
+
 function cleanTask(raw) {
   return raw
     .replace(/^ingatkan(?: aku)?\b/, '')
@@ -127,6 +183,54 @@ function formatDue(date) {
   if (isTomorrow) return `besok jam ${time}`;
   const dateStr = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
   return `${dateStr} jam ${time}`;
+}
+
+// Frasa pengingat berulang bulanan: "tiap bulan", "tiap tanggal 15",
+// "setiap bulan tanggal 15", "tiap tgl 15", "bulanan tgl 15", "per bulan tgl 15"
+const MONTHLY_RE = /(?:tiap|setiap)\s+bulan|bulanan|per\s+bulan|(?:tiap|setiap)\s+(?=(?:tgl|tanggal)\b)/;
+
+// Buang frasa bulanan tapi sisakan kata "tgl/tanggal" supaya parseTime tetap paham
+function stripMonthlyPhrase(text) {
+  return text.replace(MONTHLY_RE, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Batas jumlah pengulangan bulanan (cicilan): "12 kali", "12x"
+const COUNT_RE = /(\d{1,3})\s*(?:kali|x)\b/;
+
+// Buang frasa "N kali"/"Nx" beserta koma pemisah opsional di depannya
+function stripCountPhrase(text) {
+  return text.replace(/[,\s]*\d{1,3}\s*(?:kali|x)\b/, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Jatuh tempo bulanan berikutnya: tanggal patokan repeat.day di bulan setelah
+// fromDate (di-clamp ke hari terakhir bulan kalau tanggal tsb tidak ada,
+// mis. tgl 31 di bulan 30 hari). Siklus tidak bergeser oleh snooze/telat.
+function nextMonthly(repeat, fromDate) {
+  const from = new Date(fromDate);
+  let y = from.getFullYear();
+  let mo = from.getMonth() + 1;
+  if (mo > 11) { mo = 0; y += 1; }
+  const at = () => {
+    const last = new Date(y, mo + 1, 0).getDate();
+    return new Date(y, mo, Math.min(repeat.day, last), repeat.hh, repeat.mm, 0, 0);
+  };
+  let target = at();
+  if (target <= from) {
+    mo += 1;
+    if (mo > 11) { mo = 0; y += 1; }
+    target = at();
+  }
+  return target;
+}
+
+function formatRepeat(repeat) {
+  const base = `tiap tanggal ${repeat.day} jam ${pad(repeat.hh)}:${pad(repeat.mm)}`;
+  if (repeat.total >= 1 && repeat.left >= 1) {
+    return repeat.left === repeat.total
+      ? `${base} (bulanan, ${repeat.total} kali)`
+      : `${base} (bulanan, sisa ${repeat.left} dari ${repeat.total})`;
+  }
+  return `${base} (bulanan)`;
 }
 
 export function createTaskManager() {
@@ -187,12 +291,114 @@ export function createTaskManager() {
     return { text: 'Tugas selesai sudah dibersihkan.', state: 'happy' };
   }
 
-  function addReminder(text, dueAt) {
+  function parsePreview(text) {
+    const p = parseTime(text);
+    return { task: cleanTask(p.task) || p.task, due: p.due };
+  }
+
+  function makeHeadsUp(r) {
+    const out = [];
+    for (const d of HEADS_UP_DAYS) {
+      const early = r.dueAt - d * 86400000;
+      if (early > Date.now() + 60000) {
+        out.push({ id: uid(), text: r.text, dueAt: early, advance: d, groupId: r.id, notified: false, notifiedAt: 0, createdAt: Date.now() });
+      }
+    }
+    return out;
+  }
+
+  function addReminder(text, dueAt, opts = {}) {
     const reminders = loadReminders();
     const r = { id: uid(), text, dueAt: dueAt.getTime(), notified: false, notifiedAt: 0, createdAt: Date.now() };
+    const wantHeadsUp = opts.headsUp !== false;
+    if (!wantHeadsUp) r.noHeadsUp = true;
+    if (opts.repeat) {
+      r.repeat = { freq: 'monthly', day: dueAt.getDate(), hh: dueAt.getHours(), mm: dueAt.getMinutes() };
+      const count = Math.floor(opts.repeat.count);
+      if (count >= 1) { r.repeat.total = count; r.repeat.left = count; }
+    }
     reminders.push(r);
+    const headsUp = wantHeadsUp ? makeHeadsUp(r) : [];
+    reminders.push(...headsUp);
     saveReminders(reminders);
-    return r;
+    return { ...r, headsUp: headsUp.map((h) => h.advance) };
+  }
+
+  function updateReminder(id, { text, dueAt, headsUp, repeat } = {}) {
+    const reminders = loadReminders();
+    const r = reminders.find(x => x.id === id && !x.advance);
+    if (!r) return null;
+    const keep = reminders.filter(x => x.id === id || x.groupId !== id);
+    r.text = text;
+    r.dueAt = dueAt.getTime();
+    r.notified = false;
+    r.notifiedAt = 0;
+    if (headsUp !== undefined) {
+      if (headsUp) delete r.noHeadsUp; else r.noHeadsUp = true;
+    }
+    if (repeat !== undefined) {
+      if (repeat) {
+        const prev = r.repeat;
+        r.repeat = { freq: 'monthly', day: dueAt.getDate(), hh: dueAt.getHours(), mm: dueAt.getMinutes() };
+        const count = Math.floor(repeat.count);
+        if (count >= 1) {
+          r.repeat.total = count;
+          r.repeat.left = count;
+        } else if (prev && prev.total >= 1 && prev.left >= 1) {
+          // Tanpa count baru, pertahankan sisa cicilan lama
+          r.repeat.total = prev.total;
+          r.repeat.left = prev.left;
+        }
+      }
+      else delete r.repeat;
+    }
+    const newHeadsUp = r.noHeadsUp ? [] : makeHeadsUp(r);
+    keep.push(...newHeadsUp);
+    saveReminders(keep);
+    return { ...r, headsUp: newHeadsUp.map((h) => h.advance) };
+  }
+
+  function snoozeReminder(id, ms) {
+    const reminders = loadReminders();
+    const r = reminders.find(x => x.id === id);
+    if (!r) return;
+    r.dueAt = Date.now() + ms;
+    r.notified = false;
+    r.notifiedAt = 0;
+    saveReminders(reminders);
+  }
+
+  function getReminderGroups() {
+    const reminders = loadReminders();
+    const now = Date.now();
+    const byId = new Map(reminders.map(r => [r.id, r]));
+    const headsUpByGroup = new Map();
+    const mains = [];
+    for (const r of reminders) {
+      if (r.advance) {
+        if (!byId.has(r.groupId)) {
+          // Entri H-n yatim (induknya hilang) diperlakukan sebagai pengingat utama
+          mains.push(r);
+        } else {
+          if (!headsUpByGroup.has(r.groupId)) headsUpByGroup.set(r.groupId, []);
+          headsUpByGroup.get(r.groupId).push(r);
+        }
+      } else {
+        mains.push(r);
+      }
+    }
+    return mains
+      .sort((a, b) => a.dueAt - b.dueAt)
+      .map(main => {
+        const headsUp = (headsUpByGroup.get(main.id) || []).sort((a, b) => a.dueAt - b.dueAt);
+        const future = [main, ...headsUp].map(x => x.dueAt).filter(t => t > now);
+        return {
+          main,
+          headsUp,
+          nextDue: future.length ? Math.min(...future) : main.dueAt,
+          overdue: main.dueAt <= now
+        };
+      });
   }
 
   function listReminders() {
@@ -201,7 +407,11 @@ export function createTaskManager() {
     const now = Date.now();
     const lines = reminders.map((x, i) => {
       const overdue = x.dueAt <= now ? ' (lewat)' : '';
-      return `${i + 1}. ${x.text} — ${formatDue(new Date(x.dueAt))}${overdue}`;
+      const tag = x.advance ? `[H-${x.advance}] ` : '';
+      const recur = x.repeat
+        ? (x.repeat.total >= 1 ? `🔁 (sisa ${x.repeat.left ?? x.repeat.total}/${x.repeat.total}) ` : '🔁 ')
+        : '';
+      return `${i + 1}. ${tag}${recur}${x.text} — ${formatDue(new Date(x.dueAt))}${overdue}`;
     }).join('\n');
     return { text: `Pengingatmu:\n${lines}`, state: 'think' };
   }
@@ -232,7 +442,7 @@ export function createTaskManager() {
       });
       saveReminders(reminders);
     }
-    return due.map(x => ({ id: x.id, text: x.text, dueAt: x.dueAt }));
+    return due.map(x => ({ id: x.id, text: x.text, dueAt: x.dueAt, advance: x.advance || 0 }));
   }
 
   function summarize() {
@@ -258,6 +468,12 @@ export function createTaskManager() {
       localStorage.removeItem(TODOS_KEY);
       localStorage.removeItem(REMINDERS_KEY);
     } catch {}
+  }
+
+  function headsUpNote(r) {
+    return r.headsUp?.length
+      ? ` Peringatan awal: ${r.headsUp.map((d) => 'H-' + d).join(', ')}.`
+      : '';
   }
 
   function handleCommand(text) {
@@ -305,7 +521,18 @@ export function createTaskManager() {
       const query = doneQuery.trim().replace(/[.!?]+$/, '');
       const res = toggleTodo(query, true);
       if (res.found) return { text: res.text, state: 'happy' };
-      if (deleteReminder(query)) {
+      const qlower = query.toLowerCase();
+      const doneRem = loadReminders().find(x => !x.advance && (x.text.toLowerCase() === qlower || x.text.toLowerCase().includes(qlower)));
+      if (doneRem) {
+        const doneRes = completeReminder(doneRem.id);
+        if (doneRes.finished) {
+          return { text: `Cicilan terakhir "${doneRem.text}" lunas — selesai semua! 🎉`, state: 'happy' };
+        }
+        if (doneRes.recurring) {
+          return doneRes.left !== undefined
+            ? { text: `"${doneRem.text}" lunas! Sisa ${doneRes.left}x — diulang tiap tanggal ${doneRem.repeat.day} bulan depan 🔁`, state: 'happy' }
+            : { text: `"${doneRem.text}" lunas! Diulang tiap tanggal ${doneRem.repeat.day} bulan depan 🔁`, state: 'happy' };
+        }
         return { text: `Pengingat "${query}" ditandai selesai.`, state: 'happy' };
       }
       return doneExplicit
@@ -324,11 +551,15 @@ export function createTaskManager() {
             ? { text: 'Mau diingatkan apa & kapan? Contoh: "ingatkan aku meeting jam 3 sore".', state: 'think' }
             : { text: listTodos().text + '\n\nTambah item: ketik "todo <isi>".', state: 'think' };
         }
-        const parsed = parseTime(q);
+        const monthly = MONTHLY_RE.test(q);
+        const cm = monthly && q.match(COUNT_RE);
+        const count = cm ? parseInt(cm[1]) : 0;
+        const parsed = parseTime(monthly ? stripCountPhrase(stripMonthlyPhrase(q)) : q);
         const task = cleanTask(parsed.task) || 'pengingat';
         if (parsed.due) {
-          const r = addReminder(task, parsed.due);
-          return { text: `Oke, aku ingatkan "${r.text}" ${formatDue(new Date(r.dueAt))}.`, state: 'happy' };
+          const r = addReminder(task, parsed.due, monthly ? { repeat: count >= 1 ? { count } : true } : {});
+          const when = r.repeat ? formatRepeat(r.repeat) : formatDue(new Date(r.dueAt));
+          return { text: `Oke, aku ingatkan "${r.text}" ${when}.${headsUpNote(r)}`, state: 'happy' };
         }
         const todo = addTodo(task);
         return isRem
@@ -341,11 +572,15 @@ export function createTaskManager() {
     const reminderIntent = /^(?:ingatkan|reminder|buat pengingat|set reminder|jadwalkan|schedule)\b/.test(t);
 
     if (todoIntent || reminderIntent) {
-      const parsed = parseTime(t);
+      const monthly = MONTHLY_RE.test(t);
+      const cm = monthly && t.match(COUNT_RE);
+      const count = cm ? parseInt(cm[1]) : 0;
+      const parsed = parseTime(monthly ? stripCountPhrase(stripMonthlyPhrase(t)) : t);
       const task = cleanTask(parsed.task) || 'pengingat';
       if (parsed.due) {
-        const r = addReminder(task, parsed.due);
-        return { text: `Oke, aku ingatkan "${r.text}" ${formatDue(new Date(r.dueAt))}.`, state: 'happy' };
+        const r = addReminder(task, parsed.due, monthly ? { repeat: count >= 1 ? { count } : true } : {});
+        const when = r.repeat ? formatRepeat(r.repeat) : formatDue(new Date(r.dueAt));
+        return { text: `Oke, aku ingatkan "${r.text}" ${when}.${headsUpNote(r)}`, state: 'happy' };
       }
       if (todoIntent) {
         const todo = addTodo(task);
@@ -376,7 +611,51 @@ export function createTaskManager() {
   }
 
   function deleteReminderById(id) {
-    saveReminders(loadReminders().filter(r => r.id !== id));
+    // Menghapus pengingat utama juga menghapus heads-up (H-n) miliknya
+    saveReminders(loadReminders().filter(r => r.id !== id && r.groupId !== id));
+  }
+
+  function completeReminder(id) {
+    const reminders = loadReminders();
+    const main = reminders.find(x => x.id === id && !x.advance);
+    if (!main || !main.repeat) {
+      deleteReminderById(id);
+      return { recurring: false };
+    }
+    // Cicilan terbatas (repeat.left angka): cicilan terakhir menghapus
+    // pengingat total; sisanya dikurangi lalu dijadwalkan ulang seperti biasa.
+    if (typeof main.repeat.left === 'number') {
+      if (main.repeat.left <= 1) {
+        const total = main.repeat.total;
+        deleteReminderById(id);
+        return { recurring: true, finished: true, total };
+      }
+      main.repeat.left -= 1;
+      const keepL = reminders.filter(x => x.groupId !== id);
+      main.dueAt = nextMonthly(main.repeat, new Date()).getTime();
+      main.notified = false;
+      main.notifiedAt = 0;
+      keepL.push(...(main.noHeadsUp ? [] : makeHeadsUp(main)));
+      saveReminders(keepL);
+      return { recurring: true, next: new Date(main.dueAt), left: main.repeat.left, total: main.repeat.total };
+    }
+    // Pengingat berulang: jadwalkan ulang ke tanggal patokan bulan depan alih-alih
+    // dihapus — siklus tidak bergeser walau diselesaikan telat/setelah snooze.
+    const keep = reminders.filter(x => x.groupId !== id);
+    main.dueAt = nextMonthly(main.repeat, new Date()).getTime();
+    main.notified = false;
+    main.notifiedAt = 0;
+    keep.push(...(main.noHeadsUp ? [] : makeHeadsUp(main)));
+    saveReminders(keep);
+    return { recurring: true, next: new Date(main.dueAt) };
+  }
+
+  function updateTodo(id, text) {
+    const todos = loadTodos();
+    const x = todos.find(t => t.id === id);
+    if (!x) return;
+    x.text = text;
+    saveTodos(todos);
   }
 
   function getCounts() {
@@ -406,6 +685,12 @@ export function createTaskManager() {
     getCounts,
     getTodos,
     getReminders,
+    getReminderGroups,
+    parsePreview,
+    updateReminder,
+    snoozeReminder,
+    completeReminder,
+    updateTodo,
     toggleTodoById,
     deleteTodoById,
     deleteReminderById,

@@ -39,7 +39,6 @@ const els = {
   log: $('#log'),
   form: $('#composer'),
   input: $('#input'),
-  chips: $('#chips'),
   radialMenu: $('#radialMenu'),
   idleRadial: $('#idleRadial'),
   btnSound: $('#btnSound'),
@@ -50,10 +49,13 @@ const els = {
   installDlg: $('#installDlg'),
   installHow: $('#installHow'),
   toast: $('#toast'),
+  setProvider: $('#setProvider'),
   setUrl: $('#setUrl'),
   setKey: $('#setKey'),
   setModel: $('#setModel'),
   setSys: $('#setSys'),
+  memList: $('#memList'),
+  btnProfile: $('#btnProfile'),
   setTtsKey: $('#setTtsKey'),
   setTtsVoice: $('#setTtsVoice'),
   setTtsEnabled: $('#setTtsEnabled'),
@@ -65,18 +67,45 @@ const els = {
   shapeDlg: $('#shapeDlg'),
   shapeGridQuick: $('#shapeGridQuick'),
   obName: $('#obName'),
+  obRole: $('#obRole'),
+  obFocus: $('#obFocus'),
+  obStyle: $('#obStyle'),
   obNext: $('#obNext'),
   obSkip: $('#obSkip'),
   obNotif: $('#obNotif'),
   panelTasks: $('#panelTasks'),
   taskStats: $('#taskStats'),
-  taskForm: $('#taskForm'),
-  taskInput: $('#taskInput'),
+  taskAddBtn: $('#taskAddBtn'),
+  todoForm: $('#todoForm'),
+  todoInput: $('#todoInput'),
+  todoClearDone: $('#todoClearDone'),
+  tabCountRem: $('#tabCountRem'),
+  tabCountTodo: $('#tabCountTodo'),
+  viewReminders: $('#viewReminders'),
+  viewTodos: $('#viewTodos'),
   todoList: $('#todoList'),
   reminderList: $('#reminderList'),
+  remDlg: $('#remDlg'),
+  remForm: $('#remForm'),
+  remTitle: $('#remTitle'),
+  remText: $('#remText'),
+  remQuick: $('#remQuick'),
+  remDate: $('#remDate'),
+  remTime: $('#remTime'),
+  remHeadsUp: $('#remHeadsUp'),
+  remHeadsUpHint: $('#remHeadsUpHint'),
+  remRepeat: $('#remRepeat'),
+  remCount: $('#remCount'),
+  remCountWrap: $('#remCountWrap'),
+  remPreview: $('#remPreview'),
+  remCancel: $('#remCancel'),
+  remSave: $('#remSave'),
   btnShape: $('#btnShape'),
   btnShapes: $('#btnShapes'),
   chatSidebar: $('#chatSidebar'),
+  chatHandle: $('#chatHandle'),
+  chatMini: $('#chatMini'),
+  chatMax: $('#chatMax'),
   chatClose: $('#chatClose'),
   blobTimerOverlay: $('#blobTimerOverlay'),
   blobTimerLabel: $('#blobTimerLabel'),
@@ -338,13 +367,18 @@ function speak(text) {
   const cfg = getTtsConfig();
   const cleanText = text.replace(/[*_#`>]/g, '').slice(0, 300);
 
-  // Try MiMo TTS first if enabled
+  // Try MiMo TTS first if enabled; gagal (key salah/network) → jatuh ke suara browser
   if (cfg.enabled && cfg.key) {
-    speakMiMo(text);
+    speakMiMo(text).then((ok) => {
+      if (!ok) speakBrowser(cleanText);
+    });
     return;
   }
 
-  // Fallback: browser SpeechSynthesis
+  speakBrowser(cleanText);
+}
+
+function speakBrowser(cleanText) {
   if (!('speechSynthesis' in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(cleanText);
@@ -366,10 +400,59 @@ function showBubble(text, ms = 2600) {
   bubbleTimer = setTimeout(() => els.bubble.classList.add('hidden'), ms);
 }
 
+/* Markdown mini & aman untuk balasan bot: escape HTML dulu,
+   baru render tabel |...|, **tebal**, *miring*, `kode`, newline → <br> */
+function mdRender(text) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const isMapsUrl = (u) => /google\.[a-z.]+\/maps|maps\.google|maps\.app\.goo\.gl|goo\.gl\/maps/i.test(u);
+  const inline = (s) => esc(
+    // AI kadang membungkus link dengan <...> → normalisasi dulu
+    s.replace(/<(\[[^\]]*\]\([^)]*\))>/g, '$1')
+  )
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, label, url) => {
+      if (isMapsUrl(url)) {
+        const txt = /https?:/i.test(label) || label.length > 24 ? '📍 Buka Maps' : `📍 ${label}`;
+        return `<a class="md-btn" href="${url}" target="_blank" rel="noopener">${txt}</a>`;
+      }
+      return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+    })
+    .replace(/(?<!["'=])(https?:\/\/[^\s<"']+)/g, (m) => {
+      const trail = (m.match(/[.,;:!?]+$/) || [''])[0];
+      const url = m.slice(0, m.length - trail.length);
+      if (isMapsUrl(url)) return `<a class="md-btn" href="${url}" target="_blank" rel="noopener">📍 Buka Maps</a>${trail}`;
+      return `<a href="${url}" target="_blank" rel="noopener">${url}</a>${trail}`;
+    })
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*]+)\*/g, '<i>$1</i>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+  const isRow = (l) => /^\s*\|.*\|\s*$/.test(l);
+  const isSep = (l) => /^\s*\|[\s:|-]+\|\s*$/.test(l);
+  const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+  const lines = String(text).split('\n');
+  let html = '', i = 0;
+  while (i < lines.length) {
+    if (isRow(lines[i]) && i + 1 < lines.length && isSep(lines[i + 1])) {
+      const heads = lines[i].trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      let t = '<table class="md-table"><tr>' + heads.map((c) => `<th>${inline(c)}</th>`).join('') + '</tr>';
+      i += 2;
+      while (i < lines.length && isRow(lines[i])) {
+        t += '<tr>' + cells(lines[i]).map((c, k) => `<td data-label="${esc(heads[k] || '')}">${c}</td>`).join('') + '</tr>';
+        i++;
+      }
+      html += t + '</table>';
+    } else {
+      html += inline(lines[i]) + '<br>';
+      i++;
+    }
+  }
+  return html;
+}
+
 function addMsg(role, text) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
-  div.textContent = text;
+  if (role === 'bot') div.innerHTML = mdRender(text);
+  else div.textContent = text;
   els.log.appendChild(div);
   while (els.log.children.length > 60) els.log.firstChild.remove();
   els.log.scrollTop = els.log.scrollHeight;
@@ -417,7 +500,7 @@ async function send(rawText) {
   const text = (rawText || '').trim();
   if (!text || busy) return;
   busy = true;
-  els.chatSidebar.classList.remove('hidden');
+  openChatSidebar();
   idleAnims.stop();
   els.idleRadial.classList.add('hidden');
   els.input.value = '';
@@ -436,6 +519,7 @@ async function send(rawText) {
   showTyping(false);
   addMsg('bot', res.text);
   speak(res.text);
+  if (res.changed) renderTasksPanel();
   if (res.colorId && res.effect !== 'glow' && res.effect !== 'glowSet') blob.setColorById(res.colorId);
 
   // Detect chat sentiment for emotion engine
@@ -719,8 +803,7 @@ const emotion = (function() {
 })();
 
 function initPointer() {
-  const move = (e) => {
-    blob.setPointer(e.clientX / innerWidth, e.clientY / innerHeight);
+  const move = () => {
     idleAnims.markUserActive();
   };
   window.addEventListener('pointermove', move, { passive: true });
@@ -789,10 +872,35 @@ function initTheme() {
   if (saved) document.documentElement.dataset.theme = saved;
 }
 
+function renderMemoryList() {
+  if (!els.memList) return;
+  const facts = brain.getFacts();
+  els.memList.innerHTML = '';
+  if (!facts.length) {
+    const li = document.createElement('li');
+    li.className = 'task-empty';
+    li.textContent = 'Belum ada. Ceritakan sesuatu tentang dirimu, atau ketik "ingat bahwa …".';
+    els.memList.appendChild(li);
+    return;
+  }
+  for (const f of [...facts].reverse()) {
+    const li = document.createElement('li');
+    li.className = 'task-item';
+    li.innerHTML = '<span class="task-text"></span><button class="task-del" aria-label="Lupakan">✕</button>';
+    li.querySelector('.task-text').textContent = f.t;
+    li.querySelector('.task-del').addEventListener('click', () => {
+      brain.forgetFact(f.id);
+      renderMemoryList();
+    });
+    els.memList.appendChild(li);
+  }
+}
+
 function initSettings() {
-  const defaults = { url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
+  const defaults = { provider: '', url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
   const open = () => {
     const cfg = { ...defaults, ...JSON.parse(store.get('Mochi.settings', '{}')) };
+    els.setProvider.value = cfg.provider || '';
     els.setUrl.value = cfg.url || '';
     els.setKey.value = cfg.key || '';
     els.setModel.value = cfg.model || '';
@@ -800,13 +908,22 @@ function initSettings() {
     els.setTtsKey.value = cfg.ttsKey || '';
     els.setTtsVoice.value = cfg.ttsVoice || 'Chloe';
     els.setTtsEnabled.checked = !!cfg.ttsEnabled;
+    renderMemoryList();
     els.settingsDlg.showModal();
   };
   els.btnSettings.addEventListener('click', open);
+  // Pilih Groq → isi default endpoint + model kalau masih kosong
+  els.setProvider.addEventListener('change', () => {
+    if (els.setProvider.value === 'groq') {
+      if (!els.setUrl.value.trim()) els.setUrl.value = 'https://api.groq.com/openai/v1';
+      if (!els.setModel.value.trim()) els.setModel.value = 'openai/gpt-oss-120b';
+    }
+  });
   els.setSave.addEventListener('click', () => {
     store.set(
       'Mochi.settings',
       JSON.stringify({
+        provider: els.setProvider.value,
         url: els.setUrl.value.trim(),
         key: els.setKey.value.trim(),
         model: els.setModel.value.trim(),
@@ -818,6 +935,10 @@ function initSettings() {
     );
     els.settingsDlg.close();
     toast('Pengaturan disimpan');
+  });
+  els.btnProfile.addEventListener('click', () => {
+    els.settingsDlg.close();
+    openOnboarding(1);
   });
   els.setReset.addEventListener('click', () => {
     brain.clearAll();
@@ -925,11 +1046,12 @@ async function pushReminder(lines) {
 function checkReminders() {
   const due = brain.tasks.checkDueReminders();
   if (!due.length) return;
-  const lines = due.map(r => `⏰ ${r.text}`).join('\n');
+  const lines = due.map(r => `⏰ ${r.advance ? `[H-${r.advance}] ` : ''}${r.text}`).join('\n');
   showBubble(`Ada pengingat!\n${lines}`, 6000);
   addMsg('bot', `Pengingat jatuh tempo:\n${lines}`);
   blob.setState('excite', { holdMs: 2500 });
   pushReminder(lines);
+  if (els.panelTasks && !els.panelTasks.hidden) renderTasksPanel();
 }
 
 function registerSW() {
@@ -979,6 +1101,7 @@ function obBuildShapeGrid() {
 function obFinish() {
   const name = els.obName.value.trim();
   if (name) brain.setName(name);
+  brain.setProfile({ role: els.obRole.value, focus: els.obFocus.value, style: els.obStyle.value });
   store.set('Mochi.onboarded2', '1');
   els.obDlg.close();
   const mem = brain.memory();
@@ -995,6 +1118,11 @@ function obFinish() {
 }
 
 function openOnboarding(atStep = 0) {
+  const mem = brain.memory();
+  els.obName.value = mem.name || '';
+  els.obRole.value = mem.role || '';
+  els.obFocus.value = mem.focus || '';
+  els.obStyle.value = mem.style || '';
   obStep = Math.min(Math.max(0, atStep), obLabels.length - 1);
   obBuildShapeGrid();
   obRender();
@@ -1041,7 +1169,15 @@ function initOnboarding() {
       playPop();
     });
   });
-  els.obName.addEventListener('keydown', (e) => {
+  [els.obName, els.obRole].forEach((el) => {
+    el?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        (el === els.obName ? els.obRole : els.obFocus).focus();
+      }
+    });
+  });
+  els.obFocus?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       obStep = 2;
@@ -1086,6 +1222,23 @@ document.getElementById('musicStop')?.addEventListener('click', () => {
   musicDancer.stop();
   document.getElementById('musicStatus').textContent = 'Blob menari mengikuti irama musik!';
   idleAnims.resume();
+});
+document.getElementById('musicFile')?.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  const au = document.getElementById('musicAudio');
+  if (!f || !au) return;
+  au.hidden = false;
+  au.src = URL.createObjectURL(f);
+  au.onplay = () => {
+    musicDancer.startFromElement(au);
+    idleAnims.stop();
+    document.getElementById('musicStatus').textContent = '🎶 Blob menari mengikuti lagumu!';
+  };
+  au.onpause = au.onended = () => {
+    musicDancer.stop();
+    idleAnims.resume();
+    document.getElementById('musicStatus').textContent = 'Blob menari mengikuti irama musik!';
+  };
 });
 
 let menuOpen = false;
@@ -1221,13 +1374,38 @@ function gcalUrl(r) {
   return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(r.text)}&dates=${fmt(start)}/${fmt(end)}&details=${encodeURIComponent('Pengingat dari Mochi')}&ctz=${encodeURIComponent(ctz)}`;
 }
 
+const REM_HEADS_UP_DAYS = [5, 3, 2, 1];
+const pad2 = (n) => String(n).padStart(2, '0');
+
+function relTime(ms) {
+  const mins = Math.max(1, Math.round(Math.abs(ms) / 60000));
+  if (mins < 60) return `${mins} menit`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} jam`;
+  return `${Math.floor(hours / 24)} hari`;
+}
+
+function setTaskTab(tab) {
+  store.set('Mochi.taskTab', tab);
+  document.querySelectorAll('.task-tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  els.viewReminders.hidden = tab !== 'reminders';
+  els.viewTodos.hidden = tab !== 'todos';
+  els.taskAddBtn.hidden = tab !== 'reminders';
+}
+
 function renderTasksPanel() {
   const todos = brain.tasks.getTodos();
-  const reminders = brain.tasks.getReminders().slice().sort((a, b) => a.dueAt - b.dueAt);
+  const groups = brain.tasks.getReminderGroups();
   const now = Date.now();
   const pending = todos.filter(t => !t.done).length;
-  const upcoming = reminders.filter(r => r.dueAt > now).length;
-  els.taskStats.innerHTML = `<span><b>${pending}</b> tugas pending</span><span><b>${upcoming}</b> pengingat mendatang</span>`;
+  const overdueN = groups.filter(g => g.overdue).length;
+  const upcomingN = groups.length - overdueN;
+
+  const parts = [];
+  if (overdueN) parts.push(`🔔 ${overdueN} lewat`);
+  if (upcomingN) parts.push(`⏰ ${upcomingN} mendatang`);
+  parts.push(`☐ ${pending} tugas`);
+  els.taskStats.innerHTML = `<span>${parts.join(' · ')}</span>`;
   if ('Notification' in window) {
     const p = Notification.permission;
     const nb = document.createElement('button');
@@ -1244,15 +1422,125 @@ function renderTasksPanel() {
     els.taskStats.appendChild(nb);
   }
 
+  els.tabCountRem.textContent = groups.length || '';
+  els.tabCountTodo.textContent = pending || '';
+
+  // ── Pengingat (terkelompok per pengingat utama) ──
+  els.reminderList.innerHTML = '';
+  if (!groups.length) {
+    els.reminderList.innerHTML = `<li class="task-empty-big"><div class="big">⏰</div><div>Belum ada pengingat</div><div class="small">Tekan ＋ Pengingat atau ketik di chat: "ingatkan aku bayar listrik tgl 25"</div></li>`;
+  }
+
+  const dayStart = new Date(now); dayStart.setHours(0, 0, 0, 0);
+  const dayKey = (dueAt) => {
+    const d = new Date(dueAt); d.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - dayStart) / 86400000);
+    if (diff <= 0) return 1;      // hari ini
+    if (diff === 1) return 2;     // besok
+    if (diff <= 7) return 3;      // minggu ini
+    return 4;                     // nanti
+  };
+  const SECTIONS = ['Lewat', 'Hari ini', 'Besok', 'Minggu ini', 'Nanti'];
+  const buckets = [[], [], [], [], []];
+  for (const g of groups) buckets[g.overdue ? 0 : dayKey(g.main.dueAt)].push(g);
+
+  const snoozeTomorrow8 = () => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    t.setHours(8, 0, 0, 0);
+    return t.getTime() - Date.now();
+  };
+
+  buckets.forEach((bucket, i) => {
+    if (!bucket.length) return;
+    const h = document.createElement('li');
+    h.className = 'task-section-title task-section-inline';
+    h.textContent = SECTIONS[i];
+    els.reminderList.appendChild(h);
+    for (const g of bucket) {
+      const main = g.main;
+      const due = new Date(main.dueAt);
+      const soon = !g.overdue && main.dueAt - now < 24 * 3600 * 1000;
+      const li = document.createElement('li');
+      li.className = 'rem-card' + (g.overdue ? ' overdue' : soon ? ' soon' : '');
+
+      const dateStr = due.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
+      const when = g.overdue
+        ? `Lewat ${relTime(now - main.dueAt)}`
+        : `⏰ ${dateStr} · ${pad2(due.getHours())}:${pad2(due.getMinutes())} · ${relTime(main.dueAt - now)} lagi`;
+
+      const chips = g.headsUp.length
+        ? `<div class="rem-chips">${g.headsUp.map(hu => {
+            const past = hu.notified || hu.dueAt <= now;
+            return `<span class="rem-chip ${past ? 'past' : 'next'}">H-${hu.advance}${past ? ' ✓' : ''}</span>`;
+          }).join('')}</div>`
+        : '';
+
+      li.innerHTML = `
+        <div class="rem-head">
+          <span class="rem-ico">${g.overdue ? '🔔' : '⏰'}</span>
+          <span class="rem-text"></span>
+          ${main.repeat ? `<span class="rem-recur">🔁 tgl ${main.repeat.day}${main.repeat.total >= 1 ? ` · ${main.repeat.left === main.repeat.total ? `${main.repeat.total} kali` : `sisa ${main.repeat.left}/${main.repeat.total}`}` : ''}</span>` : ''}
+          <details class="rem-menu">
+            <summary aria-label="Menu pengingat">⋯</summary>
+            <div class="rem-menu-pop">
+              <button type="button" data-act="done">✓ Selesai</button>
+              <button type="button" data-act="snooze1h">💤 Tunda 1 jam</button>
+              <button type="button" data-act="snoozeAm">💤 Tunda besok 08:00</button>
+              <button type="button" data-act="gcal">📅 Google Kalender</button>
+              <button type="button" data-act="del">✕ Hapus</button>
+            </div>
+          </details>
+        </div>
+        <div class="rem-when">${when}</div>
+        ${chips}
+        ${g.overdue ? '<div class="rem-actions"><button type="button" data-act="done">✓ Selesai</button><button type="button" data-act="snooze1h">💤 Tunda 1 jam</button></div>' : ''}
+      `;
+      li.querySelector('.rem-text').textContent = main.text;
+
+      li.addEventListener('click', (e) => {
+        const actBtn = e.target.closest('[data-act]');
+        if (actBtn) {
+          e.stopPropagation();
+          const act = actBtn.dataset.act;
+          if (act === 'done') {
+            const res = brain.tasks.completeReminder(main.id);
+            toast(res && res.finished
+              ? `Cicilan terakhir "${main.text}" lunas — selesai semua! 🎉`
+              : res && res.recurring
+                ? (res.left !== undefined
+                    ? `Lunas! Sisa ${res.left}x — diulang ${fmtReminderTime(res.next)} 🔁`
+                    : `Lunas! Diulang ${fmtReminderTime(res.next)} bulan depan 🔁`)
+                : 'Pengingat selesai ✓');
+          }
+          else if (act === 'snooze1h') { brain.tasks.snoozeReminder(main.id, 3600000); toast('Ditunda 1 jam 💤'); }
+          else if (act === 'snoozeAm') { brain.tasks.snoozeReminder(main.id, snoozeTomorrow8()); toast('Ditunda ke besok 08:00 💤'); }
+          else if (act === 'gcal') { window.open(gcalUrl(main), '_blank', 'noopener'); li.querySelector('.rem-menu').open = false; return; }
+          else if (act === 'del') { brain.tasks.deleteReminderById(main.id); toast('Pengingat dihapus'); }
+          playPop();
+          renderTasksPanel();
+          return;
+        }
+        if (e.target.closest('.rem-menu')) return;
+        openRemDlg(main);
+      });
+
+      els.reminderList.appendChild(li);
+    }
+  });
+
+  // ── Tugas ──
   els.todoList.innerHTML = '';
-  if (!todos.length) {
+  const sorted = [...todos.filter(t => !t.done), ...todos.filter(t => t.done)];
+  if (!sorted.length) {
     els.todoList.innerHTML = '<li class="task-empty">Belum ada tugas — ketik di kolom atas atau chat "todo …"</li>';
   }
-  for (const t of todos) {
+  for (const t of sorted) {
     const li = document.createElement('li');
     li.className = 'task-item' + (t.done ? ' done' : '');
     li.innerHTML = `<button class="task-check" aria-label="Tandai">${t.done ? '☑' : '☐'}</button><span class="task-text"></span><button class="task-del" aria-label="Hapus">✕</button>`;
-    li.querySelector('.task-text').textContent = t.text;
+    const textEl = li.querySelector('.task-text');
+    textEl.textContent = t.text;
     li.querySelector('.task-check').addEventListener('click', () => {
       brain.tasks.toggleTodoById(t.id);
       playPop();
@@ -1262,39 +1550,218 @@ function renderTasksPanel() {
       brain.tasks.deleteTodoById(t.id);
       renderTasksPanel();
     });
+    textEl.addEventListener('click', () => {
+      const inp = document.createElement('input');
+      inp.className = 'task-edit';
+      inp.type = 'text';
+      inp.maxLength = 120;
+      inp.value = t.text;
+      textEl.replaceWith(inp);
+      inp.focus();
+      inp.select();
+      const commit = () => {
+        if (!inp.isConnected) return;
+        const v = inp.value.trim();
+        if (v) brain.tasks.updateTodo(t.id, v);
+        renderTasksPanel();
+      };
+      inp.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+        else if (ev.key === 'Escape') { inp.replaceWith(textEl); }
+      });
+      inp.addEventListener('blur', commit);
+    });
     els.todoList.appendChild(li);
   }
+  const doneCount = todos.length - pending;
+  els.todoClearDone.hidden = !doneCount;
+}
 
-  els.reminderList.innerHTML = '';
-  if (!reminders.length) {
-    els.reminderList.innerHTML = '<li class="task-empty">Belum ada pengingat — chat "ingatkan aku … jam …"</li>';
+// ── Dialog pengingat ──
+let remEditId = null;
+let remDtTouched = false;
+
+function setRemDt(d) {
+  els.remDate.value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  els.remTime.value = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function getRemDt() {
+  if (!els.remDate.value || !els.remTime.value) return null;
+  const d = new Date(`${els.remDate.value}T${els.remTime.value}`);
+  return isNaN(d) ? null : d;
+}
+
+function updateRemPreview() {
+  const d = getRemDt();
+  if (!d) {
+    els.remPreview.textContent = '';
+    els.remPreview.classList.remove('bad');
+    els.remSave.disabled = true;
+    els.remHeadsUpHint.textContent = '';
+    return;
   }
-  for (const r of reminders) {
-    const overdue = r.dueAt <= now;
-    const li = document.createElement('li');
-    li.className = 'task-item' + (overdue ? ' overdue' : '');
-    li.innerHTML = `<span class="task-time">${overdue ? '🔔' : '⏰'} ${fmtReminderTime(new Date(r.dueAt))}</span><span class="task-text"></span><button class="task-cal" title="Tambah ke Google Kalender" aria-label="Tambah ke Google Kalender">📅</button><button class="task-del" aria-label="Hapus">✕</button>`;
-    li.querySelector('.task-text').textContent = r.text;
-    li.querySelector('.task-cal').addEventListener('click', () => {
-      window.open(gcalUrl(r), '_blank', 'noopener');
-    });
-    li.querySelector('.task-del').addEventListener('click', () => {
-      brain.tasks.deleteReminderById(r.id);
-      renderTasksPanel();
-    });
-    els.reminderList.appendChild(li);
+  const diff = d.getTime() - Date.now();
+  if (diff <= 0) {
+    els.remPreview.textContent = '⏰ Waktu sudah lewat';
+    els.remPreview.classList.add('bad');
+    els.remSave.disabled = true;
+  } else {
+    const dateStr = d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    els.remPreview.textContent = `⏰ ${dateStr} · ${pad2(d.getHours())}:${pad2(d.getMinutes())} — ${relTime(diff)} lagi`;
+    els.remPreview.classList.remove('bad');
+    els.remSave.disabled = false;
+  }
+  const avail = REM_HEADS_UP_DAYS.filter(n => d.getTime() - n * 86400000 > Date.now() + 60000);
+  if (avail.length) {
+    els.remHeadsUpHint.textContent = `(akan dibuat: ${avail.map(n => 'H-' + n).join(', ')})`;
+    els.remHeadsUp.disabled = false;
+  } else {
+    els.remHeadsUpHint.textContent = '(terlalu dekat — tidak ada)';
+    els.remHeadsUp.disabled = true;
   }
 }
 
-els.taskForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  const raw = els.taskInput.value.trim();
-  if (!raw) return;
-  const res = brain.tasks.handleCommand(raw) || brain.tasks.handleCommand(`todo ${raw}`);
-  els.taskInput.value = '';
-  if (res) toast(res.text.split('\n')[0]);
+function openRemDlg(main) {
+  remEditId = main ? main.id : null;
+  remDtTouched = false;
+  els.remTitle.textContent = main ? 'Ubah pengingat' : 'Pengingat baru';
+  els.remText.value = main ? main.text : '';
+  els.remHeadsUp.checked = main ? !main.noHeadsUp : true;
+  els.remRepeat.checked = !!(main && main.repeat);
+  els.remCount.value = main && main.repeat && main.repeat.total >= 1 ? main.repeat.total : '';
+  els.remCountWrap.hidden = !els.remRepeat.checked;
+  let d;
+  if (main) {
+    d = new Date(main.dueAt);
+  } else {
+    d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+  }
+  setRemDt(d);
+  updateRemPreview();
+  els.remDlg.showModal();
+  setTimeout(() => els.remText.focus(), 60);
+}
+
+els.taskAddBtn.addEventListener('click', () => openRemDlg(null));
+
+document.querySelectorAll('.task-tab').forEach((b) => {
+  b.addEventListener('click', () => setTaskTab(b.dataset.tab));
+});
+setTaskTab(store.get('Mochi.taskTab', 'reminders'));
+
+els.remQuick.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-q]');
+  if (!b) return;
+  const now = new Date();
+  let d;
+  switch (b.dataset.q) {
+    case '1h':
+      d = new Date(now.getTime() + 3600000);
+      break;
+    case 'tonight':
+      d = new Date(now); d.setHours(20, 0, 0, 0);
+      if (d <= now) d.setDate(d.getDate() + 1);
+      break;
+    case 'tomorrow':
+      d = new Date(now); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0);
+      break;
+    case 'nextweek':
+      d = new Date(now); d.setDate(d.getDate() + 7); d.setHours(8, 0, 0, 0);
+      break;
+    case 'd25':
+      d = new Date(now.getFullYear(), now.getMonth(), 25, 8, 0, 0);
+      if (d <= now) d.setMonth(d.getMonth() + 1);
+      break;
+  }
+  if (d) {
+    remDtTouched = true;
+    setRemDt(d);
+    updateRemPreview();
+  }
+});
+
+els.remText.addEventListener('input', () => {
+  if (!remDtTouched) {
+    const p = brain.tasks.parsePreview(els.remText.value);
+    if (p.due) setRemDt(p.due);
+  }
+  updateRemPreview();
+});
+els.remDate.addEventListener('input', () => { remDtTouched = true; updateRemPreview(); });
+els.remTime.addEventListener('input', () => { remDtTouched = true; updateRemPreview(); });
+
+els.remCancel.addEventListener('click', () => els.remDlg.close());
+
+els.remRepeat.addEventListener('change', () => {
+  els.remCountWrap.hidden = !els.remRepeat.checked;
+});
+
+els.remForm.addEventListener('submit', (e) => {
+  const raw = els.remText.value.trim();
+  const d = getRemDt();
+  if (!raw || !d || d.getTime() <= Date.now()) {
+    e.preventDefault();
+    return;
+  }
+  const parsed = brain.tasks.parsePreview(raw);
+  const task = parsed.due && parsed.task ? parsed.task : raw;
+  const headsUp = els.remHeadsUp.checked && !els.remHeadsUp.disabled;
+  const remCountN = parseInt(els.remCount.value);
+  const repeat = els.remRepeat.checked ? (remCountN >= 1 ? { count: remCountN } : true) : false;
+  if (remEditId) {
+    const r = brain.tasks.updateReminder(remEditId, { text: task, dueAt: d, headsUp, repeat });
+    toast(`Pengingat diubah: "${task}" ${fmtReminderTime(d)}.${headsUpNote(r)}`);
+  } else {
+    const r = brain.tasks.addReminder(task, d, { headsUp, repeat });
+    toast(`Oke, aku ingatkan "${r.text}" ${fmtReminderTime(d)}.${headsUpNote(r)}`);
+  }
+  if ('Notification' in window && Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch {}
+  }
   blob.setState('happy', { holdMs: 1200 });
   renderTasksPanel();
+});
+
+function headsUpNote(r) {
+  return r && r.headsUp && r.headsUp.length
+    ? ` Peringatan awal: ${r.headsUp.map(n => 'H-' + n).join(', ')}.`
+    : '';
+}
+
+els.todoForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const raw = els.todoInput.value.trim();
+  if (!raw) return;
+  const p = brain.tasks.parsePreview(raw);
+  if (p.due) {
+    els.todoInput.value = '';
+    openRemDlg(null);
+    els.remText.value = raw;
+    remDtTouched = true;
+    setRemDt(p.due);
+    updateRemPreview();
+    toast('Kelihatannya ini pengingat — cek tanggalnya ya');
+    return;
+  }
+  brain.tasks.addTodo(raw);
+  els.todoInput.value = '';
+  playPop();
+  renderTasksPanel();
+});
+
+els.todoClearDone.addEventListener('click', () => {
+  brain.tasks.clearDone();
+  playPop();
+  renderTasksPanel();
+});
+
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.rem-menu[open]').forEach((d) => {
+    if (!d.contains(e.target)) d.open = false;
+  });
 });
 
 // Swipe-to-rotate + Drag-and-bounce physics
@@ -1752,7 +2219,7 @@ els.radialMenu.addEventListener('click', (e) => {
     if (visible) {
       sb.classList.add('hidden');
     } else {
-      sb.classList.remove('hidden');
+      openChatSidebar();
       setTimeout(() => els.input.focus(), 100);
     }
   }
@@ -2100,6 +2567,169 @@ els.chatClose.addEventListener('click', () => {
   els.chatSidebar.classList.add('hidden');
 });
 
+/* ── Chat sidebar: drag-resize + minimize ── */
+const chatMqDesktop = matchMedia('(min-width:720px)');
+
+// Min = tinggi handle + header + composer (log boleh 0)
+function chatMinH() {
+  const header = els.chatSidebar.querySelector('.chat-header');
+  return (els.chatHandle ? els.chatHandle.offsetHeight : 0) +
+         (header ? header.offsetHeight : 0) +
+         (els.form ? els.form.offsetHeight : 0);
+}
+
+// Max = tinggi main-content minus min-height stage-wrap (42dvh di CSS).
+// Tanpa ini sidebar bisa didorong keluar viewport saat stage tidak bisa menyusut.
+function chatMaxH() {
+  const parent = els.chatSidebar.parentElement;
+  const stage = parent ? parent.querySelector('.stage-wrap') : null;
+  const stageMin = stage ? (parseFloat(getComputedStyle(stage).minHeight) || 80) : 80;
+  return Math.max(120, (parent ? parent.clientHeight : window.innerHeight) - stageMin);
+}
+
+function applyChatHeight(px) {
+  const sb = els.chatSidebar;
+  // Inline height hanya dipakai di layout kolom (<720px)
+  if (chatMqDesktop.matches) { sb.style.height = ''; sb.style.flex = ''; return; }
+  const h = Math.round(Math.min(Math.max(px, chatMinH()), chatMaxH()));
+  sb.style.flex = '0 0 auto';
+  sb.style.height = h + 'px';
+}
+
+function isChatFull() {
+  return els.chatSidebar.parentElement.classList.contains('chat-full');
+}
+
+// Layar penuh = stage disembunyikan CSS, chat mengisi main-content.
+// Bukan membesarkan panel (itu mendorong composer keluar viewport).
+function setChatFull(on) {
+  if (!els.chatMax) return;
+  const sb = els.chatSidebar;
+  if (on && sb.classList.contains('mini')) setChatMini(false);
+  sb.parentElement.classList.toggle('chat-full', on);
+  store.set('Mochi.chatFull', on ? '1' : '0');
+  els.chatMax.textContent = on ? '❐' : '⛶';
+  const lbl = on ? 'Kembali ke ukuran normal' : 'Layar penuh';
+  els.chatMax.setAttribute('aria-label', lbl);
+  els.chatMax.title = lbl;
+  if (on) { sb.style.height = ''; sb.style.flex = ''; }
+  else restoreChatHeight();
+  requestAnimationFrame(() => requestAnimationFrame(scrollLogBottom));
+}
+
+function restoreChatHeight() {
+  const sb = els.chatSidebar;
+  if (chatMqDesktop.matches || sb.classList.contains('mini') || isChatFull()) return;
+  const saved = parseInt(store.get('Mochi.chatH', ''), 10);
+  if (!saved) { sb.style.height = ''; sb.style.flex = ''; return; }
+  applyChatHeight(saved);
+}
+
+function scrollLogBottom() {
+  els.log.scrollTo({ top: els.log.scrollHeight, behavior: 'instant' });
+}
+
+function setChatMini(on) {
+  const sb = els.chatSidebar;
+  // Mini dan layar penuh tidak boleh aktif bersamaan (layar jadi kosong)
+  if (on && isChatFull()) setChatFull(false);
+  sb.classList.toggle('mini', on);
+  els.chatMini.textContent = on ? '▴' : '–';
+  const lbl = on ? 'Perbesar chat' : 'Perkecil chat';
+  els.chatMini.setAttribute('aria-label', lbl);
+  els.chatMini.title = lbl;
+  store.set('Mochi.chatMini', on ? '1' : '0');
+  if (on) {
+    sb.style.height = '';
+    if (!chatMqDesktop.matches) sb.style.flex = '0 0 auto';
+  } else {
+    sb.style.flex = '';
+    restoreChatHeight();
+    // Log & composer baru tampil lagi — tunggu layout settle lalu lompat ke bawah
+    requestAnimationFrame(() => requestAnimationFrame(scrollLogBottom));
+  }
+}
+
+function openChatSidebar() {
+  const sb = els.chatSidebar;
+  sb.classList.remove('hidden');
+  // Pesan baru selalu mengembalikan panel dari mode mini
+  if (sb.classList.contains('mini')) setChatMini(false);
+  else restoreChatHeight();
+  // Sidebar baru tampil — layout kadang belum settle, scroll setelah 2 frame
+  requestAnimationFrame(() => requestAnimationFrame(scrollLogBottom));
+}
+
+let chatDragActive = false;
+let chatDragStartY = 0, chatDragStartH = 0;
+
+els.chatHandle.addEventListener('pointerdown', (e) => {
+  if (chatMqDesktop.matches) return;
+  e.preventDefault();
+  const sb = els.chatSidebar;
+  if (sb.classList.contains('mini')) setChatMini(false);
+  chatDragActive = true;
+  chatDragStartY = e.clientY;
+  chatDragStartH = sb.offsetHeight;
+  try { els.chatHandle.setPointerCapture(e.pointerId); } catch { /* noop */ }
+  sb.classList.add('dragging');
+  document.body.classList.add('chat-dragging');
+});
+
+els.chatHandle.addEventListener('pointermove', (e) => {
+  if (!chatDragActive) return;
+  // Handle di tepi atas — geser ke atas = panel makin tinggi
+  const newH = chatDragStartH + (chatDragStartY - e.clientY);
+  if (isChatFull()) {
+    // Di mode full: tarik ke bawah melepas full, lalu lanjut resize normal
+    if (e.clientY > chatDragStartY + 24) {
+      setChatFull(false);
+      chatDragStartY = e.clientY;
+      chatDragStartH = els.chatSidebar.offsetHeight;
+    }
+    return;
+  }
+  // Dorong melewati batas atas = snap ke layar penuh
+  if (newH > chatMaxH() + 40) { setChatFull(true); return; }
+  applyChatHeight(newH);
+});
+
+function endChatDrag() {
+  if (!chatDragActive) return;
+  chatDragActive = false;
+  els.chatSidebar.classList.remove('dragging');
+  document.body.classList.remove('chat-dragging');
+  if (!isChatFull()) {
+    store.set('Mochi.chatH', String(Math.round(els.chatSidebar.offsetHeight)));
+  }
+}
+els.chatHandle.addEventListener('pointerup', endChatDrag);
+els.chatHandle.addEventListener('pointercancel', endChatDrag);
+
+els.chatMini.addEventListener('click', () => {
+  setChatMini(!els.chatSidebar.classList.contains('mini'));
+});
+
+if (els.chatMax) {
+  els.chatMax.addEventListener('click', () => setChatFull(!isChatFull()));
+}
+
+// Pindah breakpoint: bersihkan inline height di kolom samping, pulihkan di layout kolom
+chatMqDesktop.addEventListener('change', () => {
+  endChatDrag();
+  const sb = els.chatSidebar;
+  if (chatMqDesktop.matches) {
+    sb.style.height = '';
+    sb.style.flex = '';
+  } else {
+    restoreChatHeight();
+  }
+});
+
+// Pulihkan state mini/full dari sesi sebelumnya
+if (store.get('Mochi.chatMini', '0') === '1') setChatMini(true);
+else if (store.get('Mochi.chatFull', '0') === '1') setChatFull(true);
+
 // Stage swipe-to-spin: swipe outside blob = 2.5D roll, faster swipe = faster spin
 let stageSwipeActive = false;
 let stageSwipeLastX = 0, stageSwipeLastY = 0;
@@ -2189,10 +2819,7 @@ els.form.addEventListener('submit', (e) => {
   e.preventDefault();
   send(els.input.value);
 });
-els.chips.addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (chip) send(chip.textContent);
-});
+
 
 /* ── Blob Timer Mode (blob morphs into clock) ── */
 let blobTimerRunning = false;
@@ -2521,7 +3148,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v97';
+const APP_VERSION = 'v123';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
