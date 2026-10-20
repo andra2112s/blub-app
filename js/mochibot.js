@@ -88,22 +88,22 @@ const MOUTH_SHAPES = {
    terlalu kaku (robot) atau terlalu tipis (coretan) untuk ekspresi ini.
    Dipakai dengan matriks posisi/rotasi engine apa adanya. */
 const EYE_D_OVERRIDE = {
-  // Menangis: mata terpejam melengkung
-  triste:  'M -8 1.5 Q 0 -8 8 1.5 Q 0 -3 -8 1.5 Z',
-  // Senang/tertawa: mata tertutup ∩∩ yang gemuk (gaya ^_^)
-  heureux: 'M -9.5 3 Q 0 -11 9.5 3 Q 0 -4 -9.5 3 Z',
-  hilare:  'M -9.5 3 Q 0 -11 9.5 3 Q 0 -4 -9.5 3 Z'
+  // Menangis: mata terpejam melengkung — stroke ujung bulat
+  triste:  { d: 'M -8.5 2 Q 0 -9 8.5 2', w: 4 },
+  // Senang/tertawa: mata tertutup ∩∩ gemuk (gaya ^_^), ujung bulat
+  heureux: { d: 'M -10 3 Q 0 -12 10 3', w: 4.5 },
+  hilare:  { d: 'M -10 3 Q 0 -12 10 3', w: 4.5 }
 };
 
 function mouthPath(shape) {
   const { type, w, h } = shape;
   const hw = w / 2;
   switch (type) {
-    case 'smile': return `M ${-hw} 0 Q 0 ${-h} ${hw} 0`;
-    case 'frown': return `M ${-hw} 0 Q 0 ${h} ${hw} 0`;
+    case 'smile': return `M ${-hw} 0 Q 0 ${h} ${hw} 0`;
+    case 'frown': return `M ${-hw} 0 Q 0 ${-h} ${hw} 0`;
     case 'line':  return `M ${-hw} 0 Q 0 1.5 ${hw} 0`;
     case 'open':  return `M ${-hw * 0.5} 0 A ${hw * 0.5} ${h} 0 1 0 ${hw * 0.5} 0 A ${hw * 0.5} ${h} 0 1 0 ${-hw * 0.5} 0`;
-    case 'smirk': return `M ${-hw} 0 Q 0 ${-h} ${hw * 0.5} ${-h * 0.5}`;
+    case 'smirk': return `M ${-hw} 0 Q 0 ${h} ${hw * 0.5} ${h * 0.5}`;
     case 'wavy':  return `M ${-hw} 0 Q ${-hw * 0.5} ${h} 0 0 Q ${hw * 0.5} ${-h} ${hw} 0`;
     default:      return `M ${-hw} 0 L ${hw} 0`;
   }
@@ -144,6 +144,7 @@ export class BlobCharacter {
   constructor(svg, opts = {}) {
     this.svg = svg;
     this.onPokeSound = opts.onPokeSound || (() => {});
+    this.onBurstSound = opts.onBurstSound || (() => {});
     this.onQuip = opts.onQuip || (() => {});
 
     const requested = OLD_SHAPE_MAP[opts.shape] || opts.shape;
@@ -334,10 +335,25 @@ export class BlobCharacter {
         node.setAttribute('d', '');
         continue;
       }
-      node.setAttribute('d', EYE_D_OVERRIDE[this.currentExpr] || eye.d);
-      node.setAttribute('transform', eye.matrix);
+      const ov = EYE_D_OVERRIDE[this.currentExpr];
+      node.setAttribute('d', ov ? ov.d : eye.d);
+      if (ov) {
+        // Matriks engine menyertakan skala mata ekspresi (heureux sangat tipis)
+        // — ambil hanya posisi + rotasi, path override tampil di ukuran natural
+        const m = eye.matrix.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
+        const rot = m ? Math.atan2(parseFloat(m[2]), parseFloat(m[1])) * 180 / Math.PI : 0;
+        node.setAttribute('transform', m ? `translate(${m[5]}, ${m[6]}) rotate(${rot.toFixed(1)})` : eye.matrix);
+        // Ujung bulat: gambar sebagai stroke, bukan fill
+        node.setAttribute('fill', 'none');
+        node.setAttribute('stroke', this.eyeColorCache);
+        node.setAttribute('stroke-width', ov.w);
+        node.setAttribute('stroke-linecap', 'round');
+      } else {
+        node.setAttribute('transform', eye.matrix);
+        node.setAttribute('fill', this.eyeColorCache);
+        node.setAttribute('stroke', 'none');
+      }
       node.setAttribute('opacity', eye.alpha.toFixed(2));
-      node.setAttribute('fill', this.eyeColorCache);
     }
 
     /* ── Mouth: position + rotation from eye matrices, shape from expression ── */
@@ -1262,43 +1278,66 @@ export class BlobCharacter {
       document.body.appendChild(fx);
     }
 
-    // Particle container
-    const particleLayer = document.createElement('div');
-    particleLayer.style.cssText = 'position:absolute;inset:0;pointer-events:none;';
-    fx.appendChild(particleLayer);
-
-    const NUM_CHUNKS = 14;
-    const NUM_SPARKS = 35;
-    const SPARK_COLORS = ['#ff6600', '#ffaa00', '#ffdd44', '#ff8822', '#ff4400', '#ffcc66'];
+    const NUM_CHUNKS = 16;
+    const NUM_SPARKS = 42;
+    const NUM_SMOKE = 10;
+    const SPARK_COLORS = ['#fff4cc', '#ffdd44', '#ffaa00', '#ff8822', '#ff6600'];
     const particles = [];
+    const baseFx = 'position:fixed;left:0;top:0;pointer-events:none;z-index:91;will-change:transform,opacity;';
 
-    // Blob chunks: dark with orange border, DOM divs (can fly off screen)
+    // Potongan blob: warna asli blob, bentuk acak tak beraturan, pinggir membara
     for (let i = 0; i < NUM_CHUNKS; i++) {
       const el = document.createElement('div');
-      const r = 12 + Math.random() * 16;
-      el.style.cssText = `position:fixed;width:${r*2}px;height:${r*2}px;border-radius:50%;background:#0a0a0c;border:1.5px solid #ff4400;box-shadow:0 0 8px rgba(255,68,0,0.6);left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);pointer-events:none;z-index:91;`;
+      const r = 9 + Math.random() * 18;
+      const rad = `${40 + Math.random() * 25}% ${55 + Math.random() * 30}% ${45 + Math.random() * 30}% ${40 + Math.random() * 25}%`;
+      el.style.cssText = `${baseFx}width:${r * 2}px;height:${r * 2}px;border-radius:${rad};background:${origFill};border:1px solid rgba(255,140,60,0.75);box-shadow:0 0 10px rgba(255,100,20,0.55), inset 0 0 6px rgba(255,120,40,0.4);`;
       fx.appendChild(el);
-      const angle = (Math.PI * 2 * i) / NUM_CHUNKS + (Math.random() - 0.5) * 0.5;
-      const speed = 200 + Math.random() * 150; // px per second
-      particles.push({ el, angle, speed, r, type: 'chunk', gravity: 0, x: 0, y: 0 });
+      const angle = (Math.PI * 2 * i) / NUM_CHUNKS + (Math.random() - 0.5) * 0.6;
+      const speed = 380 + Math.random() * 320;
+      particles.push({
+        el, type: 'chunk', x: cx, y: cy,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 160,
+        rot: 0, vrot: (Math.random() - 0.5) * 720,
+        g: 950, drag: 1.1, life: 1.1, fadeT: 0.45
+      });
     }
 
-    // Sparks: bright glowing, DOM divs
+    // Percikan: streak memanjang searah laju, inti putih-panas
     for (let i = 0; i < NUM_SPARKS; i++) {
       const el = document.createElement('div');
-      const r = 2 + Math.random() * 5;
       const color = SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)];
-      el.style.cssText = `position:fixed;width:${r*2}px;height:${r*2}px;border-radius:50%;background:${color};box-shadow:0 0 10px 3px ${color};left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);pointer-events:none;z-index:91;`;
+      const w = 3 + Math.random() * 4;
+      const len = w * (3 + Math.random() * 2.5);
+      el.style.cssText = `${baseFx}width:${len}px;height:${w}px;border-radius:${w / 2}px;background:linear-gradient(90deg,transparent,${color} 40%,#fff);box-shadow:0 0 8px 2px ${color};`;
       fx.appendChild(el);
       const angle = Math.random() * Math.PI * 2;
-      const speed = 300 + Math.random() * 200;
-      particles.push({ el, angle, speed, r, type: 'spark', gravity: 0, x: 0, y: 0 });
+      const speed = 500 + Math.random() * 420;
+      particles.push({
+        el, type: 'spark', x: cx, y: cy,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 120,
+        g: 320, drag: 1.6, life: 0.5, fadeT: 0.35
+      });
+    }
+
+    // Asap: puff abu-abu naik & membesar, layer paling belakang ledakan
+    for (let i = 0; i < NUM_SMOKE; i++) {
+      const el = document.createElement('div');
+      const r = 14 + Math.random() * 22;
+      el.style.cssText = `${baseFx}width:${r * 2}px;height:${r * 2}px;border-radius:50%;background:radial-gradient(circle,rgba(120,118,130,0.5),rgba(120,118,130,0) 70%);z-index:90;`;
+      fx.appendChild(el);
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 70 + Math.random() * 90;
+      particles.push({
+        el, type: 'smoke', x: cx, y: cy, r,
+        vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 90,
+        g: -70, drag: 2.2, life: 1.3, fadeT: 0.8
+      });
     }
 
     // ── Timing ──
     const CHARGE_DUR = 800;
-    const BANG_DUR = 900;
-    const REFORM_DELAY = 1200;
+    const BANG_DUR = 1300;
+    const REFORM_DELAY = 900;
     const REFORM_DUR = 400;
 
     const lerpColor = (from, to, t) => {
@@ -1358,6 +1397,13 @@ export class BlobCharacter {
             setTimeout(() => shockwave.remove(), 700);
           }
 
+          // Suara ledakan + guncangan layar
+          this.onBurstSound?.();
+          if (stage) {
+            stage.classList.add('knocking');
+            setTimeout(() => stage.classList.remove('knocking'), 500);
+          }
+
           // Body shrinks to 0.1 instantly + hide face
           svg.style.transition = 'transform 0.1s ease-out';
           svg.style.transform = 'scale(0.1)';
@@ -1370,35 +1416,37 @@ export class BlobCharacter {
 
       } else if (phase === 'bang') {
         const p = Math.min(elapsed / BANG_DUR, 1);
-        const ease = 1 - Math.pow(1 - p, 1.5);
 
-        // Animate particles (DOM, px-based, can fly off screen)
+        // Integrasi fisika per-partikel: velocity + gravitasi + drag udara
         for (const pt of particles) {
-          const d = pt.speed * ease;
-          pt.gravity += (pt.type === 'chunk' ? 80 : 40) * dt;
-          pt.x = Math.cos(pt.angle) * d;
-          pt.y = Math.sin(pt.angle) * d + pt.gravity * p;
-          pt.el.style.left = (cx + pt.x).toFixed(1) + 'px';
-          pt.el.style.top = (cy + pt.y).toFixed(1) + 'px';
+          if (pt.life <= 0) { pt.el.style.opacity = '0'; continue; }
+          pt.life -= dt;
+          pt.vy += pt.g * dt;
+          pt.vx *= Math.exp(-pt.drag * dt);
+          pt.vy *= Math.exp(-pt.drag * 0.4 * dt);
+          pt.x += pt.vx * dt;
+          pt.y += pt.vy * dt;
+          const op = Math.max(0, Math.min(pt.life / pt.fadeT, 1));
 
-          if (pt.type === 'spark') {
-            const life = Math.min(p / 0.45, 1);
-            pt.el.style.opacity = (1 - life).toFixed(2);
-            const sz = pt.r * 2 * (1 - life * 0.5);
-            pt.el.style.width = sz + 'px';
-            pt.el.style.height = sz + 'px';
-          } else {
-            const life = Math.min(p / 0.75, 1);
-            pt.el.style.opacity = (1 - life).toFixed(2);
+          if (pt.type === 'chunk') {
+            pt.rot += pt.vrot * dt;
+            pt.el.style.transform = `translate(${(pt.x - pt.el.offsetWidth / 2).toFixed(1)}px,${(pt.y - pt.el.offsetHeight / 2).toFixed(1)}px) rotate(${pt.rot.toFixed(1)}deg)`;
+            pt.el.style.opacity = op.toFixed(2);
+          } else if (pt.type === 'spark') {
+            const a = Math.atan2(pt.vy, pt.vx) * 180 / Math.PI;
+            pt.el.style.transform = `translate(${pt.x.toFixed(1)}px,${pt.y.toFixed(1)}px) rotate(${a.toFixed(1)}deg)`;
+            pt.el.style.opacity = op.toFixed(2);
+          } else { // smoke: membesar sambil naik
+            const grow = 1 + (1 - pt.life / 1.3) * 1.6;
+            pt.el.style.transform = `translate(${(pt.x - pt.r * grow).toFixed(1)}px,${(pt.y - pt.r * grow).toFixed(1)}px) scale(${grow.toFixed(2)})`;
+            pt.el.style.opacity = (op * 0.7).toFixed(2);
           }
         }
 
         if (p >= 1) {
           phase = 'wait';
           phaseT0 = now;
-          // Remove all particles
           for (const pt of particles) pt.el.remove();
-          particleLayer.remove();
         }
         requestAnimationFrame(animBurst);
 

@@ -206,6 +206,43 @@ function playPop() {
   } catch {}
 }
 
+/* Suara ledakan: noise burst (lowpass sweep) + sub-thump frekuensi rendah */
+function playBoom() {
+  if (muted) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    const dur = 0.6;
+
+    const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 1.5);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.setValueAtTime(3000, now);
+    filt.frequency.exponentialRampToValueAtTime(160, now + dur);
+    const nGain = ctx.createGain();
+    nGain.gain.setValueAtTime(0.5, now);
+    nGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(filt).connect(nGain).connect(ctx.destination);
+    noise.start(now);
+    noise.onended = () => ctx.close();
+
+    const sub = ctx.createOscillator();
+    const sGain = ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(110, now);
+    sub.frequency.exponentialRampToValueAtTime(35, now + 0.5);
+    sGain.gain.setValueAtTime(0.45, now);
+    sGain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+    sub.connect(sGain).connect(ctx.destination);
+    sub.start(now);
+    sub.stop(now + 0.6);
+  } catch {}
+}
+
 function playKnock() {
   if (muted) return;
   try {
@@ -1196,6 +1233,7 @@ function initOnboarding() {
 const blob = new BlobCharacter(els.svg, {
   shape: store.get('Mochi.shape', 'cercle'),
   onPokeSound: playPop,
+  onBurstSound: playBoom,
   onQuip: () => {
     if (Math.random() < 0.7) showBubble(brain.randomQuip(), 1800);
   }
@@ -3148,7 +3186,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v123';
+const APP_VERSION = 'v127';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
