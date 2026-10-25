@@ -1,0 +1,15 @@
+# Deploy Mochi di Netlify — static PWA + satu serverless function.
+# File statis disajikan dari root; /api/* diarahkan ke function chat.
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# /api/chat (dan path /api/* lain) → Netlify Function "chat"
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/chat"
+  status = 200
+  force = true
