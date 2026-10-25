@@ -3382,7 +3382,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v141';
+const APP_VERSION = 'v143';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;

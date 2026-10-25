@@ -161,7 +161,9 @@ var NOTIF_MARGIN = 0.054;
 var EYE_SPLIT = 15.46;
 var EYE_W = 0.186;
 var EYE_H = 0.412;
-var REST_GAZE = { yaw: 28.49, pitch: 28.62, roll: -13 };
+// Regard au repos : quasi de face (legerement vers l'utilisateur en bas),
+// petit roulis pour le caractere. Les autres etats gardent leurs visées propres.
+var REST_GAZE = { yaw: 2, pitch: 8, roll: -7 };
 var deg = (d) => d * Math.PI / 180;
 function spin(u, v, angle) {
   const c = Math.cos(angle);
@@ -620,15 +622,19 @@ var droplet = normalize(
   1.04
 );
 var capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0);
-// mochi 3D : dome principal + oreilles tombantes + petites pattes + bosse haut-droite
-var mochi3d = normalize(
+// mochi 3D : dome large et lisse — oreilles, pattes et bosse sont dessinees
+// en elements separes (mochibot) pour garder des bords propres.
+var mochi3d = normalize(superellipseProfile(3.4, 1.18, 0.82), 1.0);
+// fantome : drap haut etroit — cotes droits + ourlet a vagues profondes
+var ghost3d = normalize(
   unionOfCirclesProfile([
-    { x: 0, y: -0.06, r: 0.58 },
-    { x: -0.56, y: 0.26, r: 0.3 },
-    { x: 0.58, y: 0.24, r: 0.28 },
-    { x: 0.5, y: -0.6, r: 0.16 },
-    { x: -0.28, y: 0.56, r: 0.17 },
-    { x: 0.28, y: 0.56, r: 0.17 }
+    { x: 0, y: -0.42, r: 0.42 },
+    { x: 0, y: -0.05, r: 0.56 },
+    { x: 0, y: 0.28, r: 0.6 },
+    { x: -0.44, y: 0.58, r: 0.17 },
+    { x: -0.15, y: 0.62, r: 0.18 },
+    { x: 0.15, y: 0.62, r: 0.18 },
+    { x: 0.44, y: 0.58, r: 0.17 }
   ]),
   1.12
 );
@@ -645,7 +651,8 @@ var SHAPES = [
   { id: "hexagone", radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: "nuage", radii: cloud },
   { id: "goutte", radii: droplet },
-  { id: "mochi3d", radii: mochi3d }
+  { id: "mochi3d", radii: mochi3d },
+  { id: "ghost3d", radii: ghost3d }
 ];
 var SHAPE_BY_ID = new Map(SHAPES.map((s) => [s.id, s]));
 var DEFAULT_SHAPE = "cercle";

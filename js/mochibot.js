@@ -37,7 +37,8 @@ export const SHAPES_INFO = [
   { id: 'hexagone', label: 'Heksagon' },
   { id: 'nuage', label: 'Awan' },
   { id: 'goutte', label: 'Tetes' },
-  { id: 'mochi3d', label: 'Mochi 3D' }
+  { id: 'mochi3d', label: 'Mochi' },
+  { id: 'ghost3d', label: 'Hantu' }
 ];
 
 const OLD_SHAPE_MAP = {
@@ -187,7 +188,7 @@ export class BlobCharacter {
     svg.setAttribute('viewBox', '-158 -158 316 316');
 
     this.gBack = el('g');
-    this.bodyEl = el('path', { fill: INK, 'fill-opacity': '0.87' });
+    this.bodyEl = el('path', { fill: INK, 'fill-opacity': this.shapeId === 'ghost3d' ? '0.58' : '0.87' });
     this.gEyes = el('g');
     this.eyeEls = [el('path', { fill: 'none' }), el('path', { fill: 'none' })];
     this.mouthEl = el('path', { fill: 'none', 'stroke-width': '3.5', 'stroke-linecap': 'round' });
@@ -227,10 +228,11 @@ export class BlobCharacter {
       id: U('blobShadeVert'), gradientUnits: 'userSpaceOnUse',
       x1: '0', y1: '-100', x2: '0', y2: '100'
     });
+    this.vertStop2 = el('stop', { offset: '70%', 'stop-color': shadeHex(INK, 0.85), 'stop-opacity': '0.10' });
     linVert.append(
       el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.35' }),
       el('stop', { offset: '30%', 'stop-color': '#ffffff', 'stop-opacity': '0.08' }),
-      el('stop', { offset: '70%', 'stop-color': '#000000', 'stop-opacity': '0.10' }),
+      this.vertStop2,
       el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0.25' })
     );
 
@@ -269,9 +271,9 @@ export class BlobCharacter {
     const linRim = el('linearGradient', {
       id: U('blobRimGrad'), x1: '0', y1: '-1', x2: '0', y2: '1'
     });
-    this.rimStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.75), 'stop-opacity': '0.70' });
-    this.rimStop1 = el('stop', { offset: '50%', 'stop-color': tintHex(INK, 0.40), 'stop-opacity': '0.20' });
-    this.rimStop2 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.72), 'stop-opacity': '0.50' });
+    this.rimStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.80), 'stop-opacity': '0.70' });
+    this.rimStop1 = el('stop', { offset: '50%', 'stop-color': tintHex(INK, 0.45), 'stop-opacity': '0.20' });
+    this.rimStop2 = el('stop', { offset: '100%', 'stop-color': tintHex(INK, 0.15), 'stop-opacity': '0.50' });
     linRim.append(this.rimStop0, this.rimStop1, this.rimStop2);
 
     // 5b. Skin tone gradient: translucent skin shaded from body color
@@ -280,18 +282,18 @@ export class BlobCharacter {
       id: U('blobSkinGrad'), gradientUnits: 'userSpaceOnUse',
       x1: '-35', y1: '-105', x2: '35', y2: '115'
     });
-    this.skinStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.55), 'stop-opacity': '0.70' });
-    this.skinStop1 = el('stop', { offset: '38%', 'stop-color': tintHex(INK, 0.20), 'stop-opacity': '0.35' });
-    this.skinStop2 = el('stop', { offset: '62%', 'stop-color': INK, 'stop-opacity': '0.14' });
-    this.skinStop3 = el('stop', { offset: '86%', 'stop-color': shadeHex(INK, 0.78), 'stop-opacity': '0.38' });
-    this.skinStop4 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.62), 'stop-opacity': '0.55' });
+    this.skinStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.78), 'stop-opacity': '0.75' });
+    this.skinStop1 = el('stop', { offset: '38%', 'stop-color': tintHex(INK, 0.35), 'stop-opacity': '0.30' });
+    this.skinStop2 = el('stop', { offset: '62%', 'stop-color': INK, 'stop-opacity': '0.10' });
+    this.skinStop3 = el('stop', { offset: '86%', 'stop-color': shadeHex(INK, 0.88), 'stop-opacity': '0.20' });
+    this.skinStop4 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.80), 'stop-opacity': '0.32' });
     linSkin.append(this.skinStop0, this.skinStop1, this.skinStop2, this.skinStop3, this.skinStop4);
 
     // 5c. Arm gradient (objectBoundingBox): same light direction as the skin per arm
     const linArm = el('linearGradient', { id: U('blobArmGrad'), x1: '0', y1: '0', x2: '0.35', y2: '1' });
-    this.armStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.55), 'stop-opacity': '0.65' });
-    this.armStop1 = el('stop', { offset: '45%', 'stop-color': tintHex(INK, 0.18), 'stop-opacity': '0.22' });
-    this.armStop2 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.72), 'stop-opacity': '0.45' });
+    this.armStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.65), 'stop-opacity': '0.65' });
+    this.armStop1 = el('stop', { offset: '45%', 'stop-color': tintHex(INK, 0.25), 'stop-opacity': '0.22' });
+    this.armStop2 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.82), 'stop-opacity': '0.45' });
     linArm.append(this.armStop0, this.armStop1, this.armStop2);
 
     // 6. Primary glossy glass/jelly specular highlight
@@ -356,6 +358,28 @@ export class BlobCharacter {
       el('ellipse', { cx: '50', cy: '-45', rx: '18', ry: '7', fill: '#ffffff', opacity: '0.20', transform: 'rotate(32 50 -45)' })
     );
 
+    /* ── Mochi 3D : telinga terkulai + ekor di BELAKANG badan, kaki di DEPAN ──
+       Appendage digambar sebagai elemen terpisah (tepi bersih), bukan bagian
+       siluet — badan tetap dome mulus. Sinkron warna di _loop. */
+    const partDefs = [
+      // telinga kiri-kanan: terkulai ke bawah di sisi badan
+      ['ellipse', { cx: '-100', cy: '38', rx: '17', ry: '36', transform: 'rotate(8 -100 38)' }],
+      ['ellipse', { cx: '100', cy: '36', rx: '16', ry: '34', transform: 'rotate(-8 100 36)' }],
+      // kaki vertikal, di belakang badan — hanya ujungnya yang mengintip di bawah
+      ['ellipse', { cx: '-28', cy: '76', rx: '12', ry: '18' }],
+      ['ellipse', { cx: '28', cy: '76', rx: '12', ry: '18' }],
+      // bola kecil kanan-atas (ekor)
+      ['circle', { cx: '78', cy: '-58', r: '15' }]
+    ];
+    this.gMochiParts = el('g', { class: 'mochi3d-parts', style: 'display:none' });
+    this.mochiPartFills = [];
+    for (const [tag, attrs] of partDefs) {
+      const base = el(tag, { ...attrs, fill: INK, 'fill-opacity': '0.84' });
+      const shade = el(tag, { ...attrs, fill: `url(#${U('blobArmGrad')})` });
+      this.mochiPartFills.push(base);
+      this.gMochiParts.append(base, shade);
+    }
+
     /* ── Mochi 3D decor: blush + taburan gula (khas mochi foto referensi) ──
        Disembunyikan kecuali shapeId === 'mochi3d'. */
     this.gMochi3d = el('g', { 'clip-path': `url(#${U('blobBodyClip')})`, 'pointer-events': 'none', style: 'display:none' });
@@ -374,14 +398,13 @@ export class BlobCharacter {
         cx: sx, cy: sy, r: sr, fill: '#ffffff', opacity: '0.5'
       }));
     }
-    // Blush pipi merah muda — khas mochi 3D
-    this.blushL = el('ellipse', { cx: '-34', cy: '20', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
-    this.blushR = el('ellipse', { cx: '34', cy: '20', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
-    // Lidah kecil melet — ciri khas ekspresi gambar referensi
+    // Blush pipi merah muda — diposisikan relatif ke mata tiap frame
+    this.blushL = el('ellipse', { cx: '0', cy: '0', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
+    this.blushR = el('ellipse', { cx: '0', cy: '0', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
+    // Lidah kecil melet — menempel tepat di bawah mulut
     this.tongueEl = el('path', {
-      d: 'M -5 0 Q -5 10 0 10 Q 5 10 5 0 Q 0 3 -5 0 Z',
-      fill: '#ff7d9c', stroke: '#e05f7e', 'stroke-width': '1',
-      transform: 'translate(0, 34)'
+      d: 'M -5 0 Q -5 9 0 9 Q 5 9 5 0 Q 0 2.5 -5 0 Z',
+      fill: '#ff7d9c', stroke: '#e05f7e', 'stroke-width': '1'
     });
     this.gMochi3d.append(this.blushL, this.blushR, this.tongueEl);
 
@@ -392,7 +415,7 @@ export class BlobCharacter {
 
     // All blob content wrapped in gBody so gaze tilt can move the whole body
     this.gBody = el('g');
-    this.gBody.append(this.gBack, this.gArms, this.bodyEl, this.gCore, this.gShade, this.gMochi3d, this.gEyes, this.gFront);
+    this.gBody.append(this.gBack, this.gArms, this.gMochiParts, this.bodyEl, this.gCore, this.gShade, this.gMochi3d, this.gEyes, this.gFront);
     svg.append(defs, this.gBody);
     this.gazeX = 0; this.gazeY = 0;
     this.gazeTargetX = 0; this.gazeTargetY = 0;
@@ -459,20 +482,22 @@ export class BlobCharacter {
     this.chocoStop3.setAttribute('stop-color', cEdge);
     this.chocoHiStop0.setAttribute('stop-color', cHi);
     this.chocoHiStop1.setAttribute('stop-color', cHi);
-    // Translucent skin gradient: bright tint top → deep shade bottom
-    this.skinStop0.setAttribute('stop-color', tintHex(fill, 0.55));
-    this.skinStop1.setAttribute('stop-color', tintHex(fill, 0.20));
+    // Vertical wash: stop gelap ikut warna badan (bukan hitam)
+    this.vertStop2.setAttribute('stop-color', shadeHex(fill, 0.85));
+    // Translucent skin gradient: bright tint top → soft deep bottom (iOS glass)
+    this.skinStop0.setAttribute('stop-color', tintHex(fill, 0.78));
+    this.skinStop1.setAttribute('stop-color', tintHex(fill, 0.35));
     this.skinStop2.setAttribute('stop-color', fill);
-    this.skinStop3.setAttribute('stop-color', shadeHex(fill, 0.78));
-    this.skinStop4.setAttribute('stop-color', shadeHex(fill, 0.62));
+    this.skinStop3.setAttribute('stop-color', shadeHex(fill, 0.88));
+    this.skinStop4.setAttribute('stop-color', shadeHex(fill, 0.80));
     // Fresnel rim: tinted edge light
-    this.rimStop0.setAttribute('stop-color', tintHex(fill, 0.75));
-    this.rimStop1.setAttribute('stop-color', tintHex(fill, 0.40));
-    this.rimStop2.setAttribute('stop-color', shadeHex(fill, 0.72));
+    this.rimStop0.setAttribute('stop-color', tintHex(fill, 0.80));
+    this.rimStop1.setAttribute('stop-color', tintHex(fill, 0.45));
+    this.rimStop2.setAttribute('stop-color', tintHex(fill, 0.15));
     // Arms: same light direction as skin
-    this.armStop0.setAttribute('stop-color', tintHex(fill, 0.55));
-    this.armStop1.setAttribute('stop-color', tintHex(fill, 0.18));
-    this.armStop2.setAttribute('stop-color', shadeHex(fill, 0.72));
+    this.armStop0.setAttribute('stop-color', tintHex(fill, 0.65));
+    this.armStop1.setAttribute('stop-color', tintHex(fill, 0.25));
+    this.armStop2.setAttribute('stop-color', shadeHex(fill, 0.82));
   }
 
   _loop() {
@@ -514,18 +539,36 @@ export class BlobCharacter {
     this._updateSkinColors(curFill);
 
     /* ── Animate stubby cute arms ── */
-    /* mochi3d : les oreilles/pattes sont deja dans la silhouette — pas de bras separes */
+    /* mochi3d : les oreilles/pattes sont des elements separes — pas de bras */
     const isMochi3d = this.shapeId === 'mochi3d';
-    const armsHidden = isMochi3d;
+    const isGhost = this.shapeId === 'ghost3d';
+    const armsHidden = isMochi3d || isGhost;
     if (this.gArms) this.gArms.style.display = armsHidden ? 'none' : '';
     if (this.gMochi3d) this.gMochi3d.style.display = isMochi3d ? '' : 'none';
-    if (this.gArms && !armsHidden && !this._micMode && !this._timerMode) {
-      if (this._lastArmFill !== curFill) {
-        this._lastArmFill = curFill;
-        this.armLBase.setAttribute('fill', curFill);
-        this.armRBase.setAttribute('fill', curFill);
-      }
 
+    if (this._lastArmFill !== curFill) {
+      this._lastArmFill = curFill;
+      for (const p of this.mochiPartFills) p.setAttribute('fill', curFill);
+      this.armLBase.setAttribute('fill', curFill);
+      this.armRBase.setAttribute('fill', curFill);
+    }
+
+    if (isMochi3d) {
+      // Telinga/kaki/ekor mengikuti transformasi siluet (menyusut/miring/geser)
+      const fs = this._fsil;
+      const k = Math.max(0.2, Math.min(1, fs.s));
+      const rotDeg = fs.rot * 180 / Math.PI;
+      const sway = Math.sin(now * 2.5) * 1.5;
+      const t = `translate(${fs.cx.toFixed(1)} ${fs.cy.toFixed(1)}) rotate(${(rotDeg).toFixed(1)}) scale(${k.toFixed(2)}) translate(${(-fs.cx).toFixed(1)} ${(-fs.cy).toFixed(1)})`;
+      if (this.gMochiParts) {
+        this.gMochiParts.style.display = '';
+        this.gMochiParts.setAttribute('transform', `rotate(${sway.toFixed(1)} 0 -20) ` + t);
+      }
+    } else {
+      if (this.gMochiParts) this.gMochiParts.style.display = 'none';
+    }
+
+    if (this.gArms && !armsHidden && !this._micMode && !this._timerMode) {
       const isCheering = this.currentExpr === 'excite' || this.currentExpr === 'heureux' || this.currentExpr === 'hilare';
       const isSleepy = this.mood === 'sleepy' || this.currentExpr === 'somnolent';
 
@@ -611,15 +654,18 @@ export class BlobCharacter {
     }
 
     // mochi3d : mata manik gelap (bukan warna kertas) + kilau putih
+    // ghost3d : mata rongga gelap (hollow eyes) — lebih seram
     let eyeCol = this.eyeColorCache;
-    if (isMochi3d) {
+    if (isMochi3d || isGhost) {
       let bl = 0.5;
       const hv = parseInt((curFill || '#14141e').replace('#', ''), 16);
       if (!isNaN(hv)) {
         const rr = hv >> 16 & 255, gg = hv >> 8 & 255, bb = hv & 255;
         bl = (0.299 * rr + 0.587 * gg + 0.114 * bb) / 255;
       }
-      eyeCol = bl > 0.32 ? '#4a2f33' : '#e8e4ec';
+      eyeCol = isMochi3d
+        ? (bl > 0.32 ? '#4a2f33' : '#e8e4ec')
+        : (bl > 0.3 ? shadeHex(curFill, 0.35) : '#d9d4e0');
     }
     for (let i = 0; i < 2; i++) {
       const eye = frame.eyes[i];
@@ -709,18 +755,34 @@ export class BlobCharacter {
         this.mouthEl.setAttribute('stroke', eyeCol);
         const mouthAlpha = Math.min(...eyePos.map((p) => p.a));
         this.mouthEl.setAttribute('opacity', mouthAlpha.toFixed(2));
-        // Lidah mochi3d mengikuti transform mulut — tapi disembunyikan saat
+        // Lidah mochi3d menempel persis di bawah mulut — disembunyikan saat
         // ekspresi negatif (cemberut/sedih) karena melet tidak cocok
         if (this.tongueEl) {
           const tongueOK = !['frown', 'wavy'].includes(finalShape.type);
           this.tongueEl.setAttribute('transform',
-            `translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${avgRot.toFixed(1)}) translate(0, 6)`);
+            `translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${avgRot.toFixed(1)}) translate(0, 2)`);
           this.tongueEl.setAttribute('opacity', (tongueOK ? mouthAlpha : 0).toFixed(2));
+        }
+        // Blush mengikuti posisi mata: di luar-bawah tiap mata, ikut kemiringan wajah
+        if (this.blushL && this.blushR) {
+          const sideA = offA - Math.PI / 2; // arah garis antar-mata (kiri→kanan)
+          const sorted = [...eyePos].sort((a, b) => a.x - b.x);
+          const bl = [this.blushL, this.blushR];
+          for (let i = 0; i < Math.min(2, sorted.length); i++) {
+            const p = sorted[i];
+            const sgn = i === 0 ? -1 : 1;
+            const bx = p.x + Math.cos(sideA) * sgn * 15 + Math.cos(offA) * 17;
+            const by = p.y + Math.sin(sideA) * sgn * 15 + Math.sin(offA) * 17;
+            bl[i].setAttribute('transform',
+              `translate(${bx.toFixed(1)}, ${by.toFixed(1)}) rotate(${avgRot.toFixed(1)})`);
+            bl[i].setAttribute('opacity', (p.a * 0.55).toFixed(2));
+          }
         }
       }
     }
-    if (this.tongueEl && this.mouthEl.getAttribute('d') === '') {
-      this.tongueEl.setAttribute('opacity', '0');
+    if (this.mouthEl.getAttribute('d') === '') {
+      if (this.tongueEl) this.tongueEl.setAttribute('opacity', '0');
+      if (this.blushL) { this.blushL.setAttribute('opacity', '0'); this.blushR.setAttribute('opacity', '0'); }
     }
 
     this._syncDots(frame.dots, frame.dotsBehind);
@@ -808,6 +870,8 @@ export class BlobCharacter {
     const rec = SHAPE_BY_ID.get(id);
     if (!rec) return;
     this.shapeId = id;
+    // Hantu lebih tembus pandang (sifat hantu); bentuk lain kulit mochi normal
+    this.bodyEl.setAttribute('fill-opacity', id === 'ghost3d' ? '0.58' : '0.87');
     this.engine.setShape(rec.radii, nowSec());
   }
 
