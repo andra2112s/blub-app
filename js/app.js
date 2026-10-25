@@ -3382,7 +3382,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v138';
+const APP_VERSION = 'v141';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
@@ -3395,6 +3395,10 @@ function applyPersonaName() {
 }
 
 function injectManifest() {
+  // Manifest statis (manifest.webmanifest) lebih andal untuk installability —
+  // Chrome kadang tidak memicu prompt install untuk manifest blob:.
+  // Tukar ke blob HANYA kalau persona di-rename (nama app ikut berubah).
+  if (PERSONA === 'Mochi') return;
   const abs = (p) => new URL(p, location.href).href;
   const manifest = {
     name: `${PERSONA} — Teman AI Interaktif`,
