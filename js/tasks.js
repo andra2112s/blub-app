@@ -164,6 +164,7 @@ function cleanTask(raw) {
   return raw
     .replace(/^ingatkan(?: aku)?\b/, '')
     .replace(/^reminder\b/, '')
+    .replace(/^jangan lupa\b/, '')
     .replace(/^(?:todo|tugas|to do|kerjakan|daftarkan|catat)\b/, '')
     .replace(/^nanti\b/, '')
     .replace(/^besok\b/, '')
@@ -570,8 +571,13 @@ export function createTaskManager() {
 
     const todoIntent = /^(?:todo|tugas|to do|kerjakan|daftarkan|catat)\b/.test(t);
     const reminderIntent = /^(?:ingatkan|reminder|buat pengingat|set reminder|jadwalkan|schedule)\b/.test(t);
+    // Intent pengingat di tengah kalimat: "besok jam 5 pagi ingatkan aku olahraga",
+    // "jangan lupa beli susu" — frasa alami begitu gagal terdeteksi kalau hanya
+    // dicek di awal kalimat.
+    const midReminder = !todoIntent && !reminderIntent &&
+      /(?:^|\s)(?:ingatkan(?:\s+aku)?|jangan\s+lupa|reminder(?:\s+buat)?|pengingat(?:\s+buat)?)\s+\S/.test(t);
 
-    if (todoIntent || reminderIntent) {
+    if (todoIntent || reminderIntent || midReminder) {
       const monthly = MONTHLY_RE.test(t);
       const cm = monthly && t.match(COUNT_RE);
       const count = cm ? parseInt(cm[1]) : 0;
@@ -582,7 +588,7 @@ export function createTaskManager() {
         const when = r.repeat ? formatRepeat(r.repeat) : formatDue(new Date(r.dueAt));
         return { text: `Oke, aku ingatkan "${r.text}" ${when}.${headsUpNote(r)}`, state: 'happy' };
       }
-      if (todoIntent) {
+      if (todoIntent || midReminder) {
         const todo = addTodo(task);
         return { text: `Tugas ditambah: "${todo.text}". Semangat!`, state: 'happy' };
       }

@@ -620,6 +620,18 @@ var droplet = normalize(
   1.04
 );
 var capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0, 0);
+// mochi 3D : dome principal + oreilles tombantes + petites pattes + bosse haut-droite
+var mochi3d = normalize(
+  unionOfCirclesProfile([
+    { x: 0, y: -0.06, r: 0.58 },
+    { x: -0.56, y: 0.26, r: 0.3 },
+    { x: 0.58, y: 0.24, r: 0.28 },
+    { x: 0.5, y: -0.6, r: 0.16 },
+    { x: -0.28, y: 0.56, r: 0.17 },
+    { x: 0.28, y: 0.56, r: 0.17 }
+  ]),
+  1.12
+);
 var SHAPES = [
   { id: "cercle", radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: "galet", radii: pebble },
@@ -632,7 +644,8 @@ var SHAPES = [
   // 0deg : sommets a gauche et a droite, donc aretes du haut et du bas plates
   { id: "hexagone", radii: regularPolygonProfile(6, 1.04, 0.26, 0) },
   { id: "nuage", radii: cloud },
-  { id: "goutte", radii: droplet }
+  { id: "goutte", radii: droplet },
+  { id: "mochi3d", radii: mochi3d }
 ];
 var SHAPE_BY_ID = new Map(SHAPES.map((s) => [s.id, s]));
 var DEFAULT_SHAPE = "cercle";
@@ -1441,8 +1454,27 @@ var _BotEngine = class _BotEngine {
   }
   posed(def, t, shape, expr) {
     let pose = def.pose(t);
-    if (def.baseBody && shape) {
-      pose = { ...pose, sil: { ...pose.sil, radii: shape } };
+    if (shape && pose.sil && pose.sil.radii) {
+      if (def.baseBody) {
+        pose = { ...pose, sil: { ...pose.sil, radii: shape } };
+      } else {
+        // La forme choisie ne doit jamais etre remplacee par la silhouette
+        // imposee par l'etat (triangle, barre "!", point...). On conserve la
+        // choregraphie — position, rotation, squash, particules — en
+        // transposant le profil choisi sur l'echelle moyenne visee par l'etat.
+        const src = pose.sil.radii;
+        let mSrc = 0;
+        let mDst = 0;
+        for (let i = 0; i < src.length; i++) {
+          mSrc += src[i];
+          mDst += shape[i % shape.length];
+        }
+        const k = mDst > 0 ? mSrc / mDst : 1;
+        pose = {
+          ...pose,
+          sil: { ...pose.sil, radii: src.map((_, i) => shape[i % shape.length] * k) }
+        };
+      }
     }
     if (def.baseFace && expr) {
       pose = { ...pose, gaze: expr.gaze, split: expr.split, eyes: expr.eyes };
@@ -1642,9 +1674,18 @@ var _BotEngine = class _BotEngine {
     const ny = pose.notif ? (pose.notif.y * nFit + offY) * R2 : 0;
     const notif = pose.notif ? { x: nx, y: ny, r: pose.notif.r * R2 } : null;
     const notch = pose.notif ? { x: nx, y: ny, r: pose.notif.notch * R2 } : null;
+    let silMean = 0;
+    for (const r of pose.sil.radii) silMean += r;
+    silMean /= pose.sil.radii.length;
     return {
       bodyPath,
       bodyAlpha: pose.bodyAlpha,
+      // Echelle/centre reels de la silhouette (unites viewBox) — permet aux
+      // accessoires (bras…) de suivre le corps quand un etat le retrecit.
+      silScale: silMean,
+      silCx: sil.cx * R2,
+      silCy: sil.cy * R2,
+      silRot: sil.rot,
       eyes,
       dots,
       dotsBehind: pose.dotsBehind,

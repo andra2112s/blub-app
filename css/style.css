@@ -602,6 +602,7 @@ body {
   touch-action: none;
   z-index: 2;
   position: relative;
+  filter: drop-shadow(0 14px 28px rgba(100, 80, 160, 0.16));
 }
 
 /* ── Ground shadow (flat ellipse below blob) ── */
@@ -635,11 +636,11 @@ body {
 
 [data-theme="dark"] #blobSvg,
 :root:not([data-theme="light"]) #blobSvg {
-  filter: none;
+  filter: drop-shadow(0 14px 30px rgba(124, 92, 255, 0.22));
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) #blobSvg {
-    filter: none;
+    filter: drop-shadow(0 14px 30px rgba(124, 92, 255, 0.22));
   }
 }
 
@@ -672,6 +673,147 @@ body {
   animation: idleBadgePulse 1s ease-in-out infinite;
 }
 .idle-badge.hidden { display: none; }
+
+/* ── Pet HUD (collapsed = lingkaran mood; tap → expand jadi quick-action bar) ── */
+.pet-hud {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  max-width: 34px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
+  z-index: 15;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.32s cubic-bezier(0.34, 1.3, 0.64, 1), padding 0.3s ease,
+              border-color 0.3s ease;
+}
+.pet-hud.open { max-width: 220px; padding: 0 8px 0 0; }
+/* Ada kebutuhan kritis → lingkaran berdenyut merah walau collapsed */
+.pet-hud.need { border-color: #e8483f; }
+.pet-hud.need .pet-hud-mood { animation: idleBadgePulse 1.2s ease-in-out infinite; }
+.pet-hud button {
+  border: none;
+  background: none;
+  padding: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.pet-hud-mood {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 50%;
+  transition: transform 0.12s ease;
+}
+.pet-hud-mood:active { transform: scale(0.85); }
+.pet-hud-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 30px;
+  border-radius: 10px;
+  opacity: 0;
+  transform: scale(0.5);
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.22s ease, background 0.15s ease;
+}
+.pet-hud.open .pet-hud-act { opacity: 1; transform: scale(1); pointer-events: auto; }
+.pet-hud.open .pet-hud-act:nth-of-type(3) { transition-delay: 0.04s; }
+.pet-hud.open .pet-hud-act:nth-of-type(4) { transition-delay: 0.08s; }
+.pet-hud.open .pet-hud-act:nth-of-type(5) { transition-delay: 0.12s; }
+.pet-hud-act:hover { background: var(--border); }
+.pet-hud-act:active { transform: scale(0.82); }
+.pet-hud-act em { font-style: normal; font-size: 13px; line-height: 1; }
+.pet-hud-act b {
+  display: block;
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--border);
+  transition: width 0.5s ease, background 0.4s ease;
+}
+.pet-hud-act.alert em { animation: idleBadgePulse 1.2s ease-in-out infinite; }
+
+/* ── Pet panel ── */
+.pet-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 4px;
+}
+.pet-hero-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.pet-mood { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+.pet-sub { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.pet-stats {
+  padding: 12px 16px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pet-stat { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; }
+.pet-ico { width: 20px; text-align: center; flex-shrink: 0; }
+.pet-name { width: 52px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+.pet-bar {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.pet-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.5s ease, background 0.4s ease;
+}
+.pet-fill.bond { background: #e152b0; }
+.pet-val {
+  width: 26px;
+  text-align: right;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.pet-actions { padding-top: 6px; flex: none; }
+.pet-hint { padding: 0 16px 14px; text-align: center; font-size: 0.8rem; }
+
+/* Emoji terbang ke blob saat aksi perawatan — level body (fixed, z-45) supaya
+   selalu terlihat di atas backdrop & panel bottom-sheet; geraknya via WAAPI */
+.pet-fly {
+  position: fixed;
+  left: 0;
+  top: 0;
+  font-size: 1.7rem;
+  z-index: 45;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 @keyframes idleBadgeIn {
   from { opacity: 0; transform: translateY(-10px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -683,15 +825,17 @@ body {
 
 .bubble {
   position: absolute;
-  bottom: max(76px, calc(env(safe-area-inset-bottom) + 76px));
+  /* Mengambang tepat di atas kepala Mochi — radius visual blob = 100/316 lebar
+     SVG (bukan setengah viewBox 158), jadi jaraknya nempel, bukan melayang jauh */
+  bottom: calc(50% + min(22.8vw, 108px) + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
   color: var(--text);
   padding: 7px 12px;
-  border-radius: 4px 14px 14px 14px;
-  box-shadow: var(--shadow);
+  border-radius: 14px 14px 14px 4px;
+  box-shadow: 0 6px 18px rgba(20, 20, 26, 0.14), 0 2px 5px rgba(20, 20, 26, 0.08);
   font-size: 0.78rem;
   line-height: 1.35;
   white-space: pre-line;
@@ -1436,9 +1580,11 @@ body.chat-dragging { user-select: none; }
   }
   #blobSvg { width: min(36vw, 400px); }
   .blob-ground { width: min(22vw, 250px); height: min(4vw, 40px); }
+  .bubble { bottom: calc(50% + min(11.4vw, 127px) + 8px); }
   /* Timer mode: enlarge blob on desktop so dot-matrix timer is bigger */
   .stage.timer-mode #blobSvg { width: min(60vw, 600px); }
   .stage.timer-mode .blob-ground { width: min(60vw, 600px); }
+  .stage.timer-mode .bubble { bottom: calc(50% + min(19vw, 190px) + 8px); }
   .chat-sidebar {
     flex: 0 0 380px;
     width: 380px;
@@ -1803,23 +1949,25 @@ body:has(.chat-sidebar:not(.hidden)) .blob-launcher { display: none; }
   pointer-events: auto;
 }
 
-/* User mode: 5 tombol, r=120px */
+/* User mode: 6 tombol, r=120px */
 .rm-btn[data-feature="chat"]       { --pos: translate(-120px, 0px);    transition-delay: 0.02s; }
-.rm-btn[data-feature="tasks"]      { --pos: translate(-85px, -85px);   transition-delay: 0.05s; }
-.rm-btn[data-feature="pomodoro"]   { --pos: translate(0px, -120px);    transition-delay: 0.08s; }
-.rm-btn[data-feature="meditasi"]   { --pos: translate(85px, -85px);    transition-delay: 0.11s; }
-.rm-btn[data-feature="fun"]        { --pos: translate(120px, 0px);     transition-delay: 0.14s; }
+.rm-btn[data-feature="tasks"]      { --pos: translate(-97px, -71px);   transition-delay: 0.05s; }
+.rm-btn[data-feature="pomodoro"]   { --pos: translate(-37px, -114px);  transition-delay: 0.08s; }
+.rm-btn[data-feature="meditasi"]   { --pos: translate(37px, -114px);   transition-delay: 0.11s; }
+.rm-btn[data-feature="fun"]        { --pos: translate(97px, -71px);    transition-delay: 0.14s; }
+.rm-btn[data-feature="pet"]        { --pos: translate(120px, 0px);     transition-delay: 0.17s; }
 
 /* Dev-only buttons hidden by default */
 .rm-btn[data-dev] { display: none; }
 
-/* Dev mode: 6 tombol — respacing */
+/* Dev mode: 7 tombol — respacing */
 .radial-menu.dev-on .rm-btn[data-feature="chat"]     { --pos: translate(-120px, 0px); }
-.radial-menu.dev-on .rm-btn[data-feature="tasks"]    { --pos: translate(-97px, -71px); }
-.radial-menu.dev-on .rm-btn[data-feature="pomodoro"] { --pos: translate(-37px, -114px); }
-.radial-menu.dev-on .rm-btn[data-feature="meditasi"] { --pos: translate(37px, -114px); }
-.radial-menu.dev-on .rm-btn[data-feature="fun"]      { --pos: translate(97px, -71px); }
-.radial-menu.dev-on .rm-btn[data-dev]                { display: flex; --pos: translate(120px, 0px); transition-delay: 0.17s; }
+.radial-menu.dev-on .rm-btn[data-feature="tasks"]    { --pos: translate(-104px, -60px); }
+.radial-menu.dev-on .rm-btn[data-feature="pomodoro"] { --pos: translate(-60px, -104px); }
+.radial-menu.dev-on .rm-btn[data-feature="meditasi"] { --pos: translate(0px, -120px); }
+.radial-menu.dev-on .rm-btn[data-feature="fun"]      { --pos: translate(60px, -104px); }
+.radial-menu.dev-on .rm-btn[data-feature="pet"]      { --pos: translate(104px, -60px); }
+.radial-menu.dev-on .rm-btn[data-dev]                { display: flex; --pos: translate(120px, 0px); transition-delay: 0.2s; }
 
 .radial-menu:not(.hidden) .rm-btn:hover {
   transform: translate(-50%, -50%) rotate(var(--rot)) var(--pos) scale(1.08);
@@ -2465,6 +2613,7 @@ body:has(.chat-sidebar:not(.hidden)) .blob-launcher { display: none; }
 /* Settings: checkbox row */
 .chip-row { cursor: pointer; user-select: none; }
 .chip-row input[type="checkbox"] { accent-color: var(--accent); }
+.key-test-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 
 @keyframes meditasiRise {
   from { transform: translate(-50%, 12px); opacity: 0; }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v127';
+      var V='v138';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('Mochi.activeSw')===V)return;
@@ -69,6 +69,13 @@
             <div id="blobGround" class="blob-ground" aria-hidden="true"></div>
             <svg id="blobSvg" viewBox="-158 -158 316 316" role="img" aria-label="Mochi"></svg>
             <div id="idleBadge" class="idle-badge hidden"></div>
+            <div id="petHud" class="pet-hud" role="group" aria-label="Aksi cepat pet">
+              <button class="pet-hud-mood" id="petHudMood" aria-label="Buka status pet" title="Status pet">😊</button>
+              <button class="pet-hud-act" data-care="feed" aria-label="Kasih makan" title="Kasih makan"><em>🍖</em><b data-hud="hunger" style="width:80%"></b></button>
+              <button class="pet-hud-act" data-care="play" aria-label="Ajak main" title="Ajak main"><em>🎾</em><b data-hud="energy" style="width:85%"></b></button>
+              <button class="pet-hud-act" data-care="pet" aria-label="Elus-elus" title="Elus-elus"><em>🫳</em><b data-hud="social" style="width:70%"></b></button>
+              <button class="pet-hud-act" data-care="sleep" aria-label="Tidurin / Bangunin" title="Tidurin / Bangunin"><em>😴</em><b data-hud="rest" style="width:80%"></b></button>
+            </div>
           </section>
         </div>
 
@@ -96,7 +103,8 @@
               <button class="rm-btn" data-feature="pomodoro" style="--i:2"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="13" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 9v4l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 2h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Pomodoro</span></button>
               <button class="rm-btn" data-feature="meditasi" style="--i:3"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4v-2M9 5L7 3M15 5l2-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Med</span></button>
               <button class="rm-btn" data-feature="fun" style="--i:4"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M12 3l2.5 6 6.5.5-5 4.5 1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5l6.5-.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Fun</span></button>
-              <button class="rm-btn" data-feature="idletest" data-dev style="--i:5"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
+              <button class="rm-btn" data-feature="pet" style="--i:5"><svg viewBox="0 0 24 24" class="rm-icon"><path fill="currentColor" d="M12 12.8c-2.8 0-5.5 2.1-5.5 4.6 0 1.6 1.2 2.9 2.9 2.9 1 0 1.7-.5 2.6-.5s1.6.5 2.6.5c1.7 0 2.9-1.3 2.9-2.9 0-2.5-2.7-4.6-5.5-4.6ZM6.4 8.4c-1.1 0-2 1.1-2 2.6s.9 2.6 2 2.6 2-1.1 2-2.6-.9-2.6-2-2.6Zm11.2 0c-1.1 0-2 1.1-2 2.6s.9 2.6 2 2.6 2-1.1 2-2.6-.9-2.6-2-2.6ZM9.2 3.6c-1.1 0-2 1.2-2 2.8s.9 2.8 2 2.8 2-1.2 2-2.8-.9-2.8-2-2.8Zm5.6 0c-1.1 0-2 1.2-2 2.8s.9 2.8 2 2.8 2-1.2 2-2.8-.9-2.8-2-2.8Z"/></svg><span>Pet</span></button>
+              <button class="rm-btn" data-feature="idletest" data-dev style="--i:6"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
             </div>
 
             <div id="idleRadial" class="sub-radial hidden">
@@ -268,6 +276,37 @@
           </div>
         </section>
 
+        <section class="feature-panel" id="panelPet" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelPet">←</button>
+            <span class="panel-title">🐾 Pet</span>
+          </div>
+          <div class="panel-body">
+            <div class="pet-hero">
+              <div class="pet-hero-icon" id="petMoodIcon">😊</div>
+              <div class="pet-hero-txt">
+                <div class="pet-mood" id="petMood">Lagi senang</div>
+                <div class="pet-sub" id="petSub">Bersama 1 hari</div>
+              </div>
+            </div>
+            <div class="pet-stats">
+              <div class="pet-stat"><span class="pet-ico">🍖</span><span class="pet-name">Lapar</span><div class="pet-bar"><i id="petBar-hunger" class="pet-fill ok"></i></div><span class="pet-val" id="petVal-hunger">80</span></div>
+              <div class="pet-stat"><span class="pet-ico">⚡</span><span class="pet-name">Energi</span><div class="pet-bar"><i id="petBar-energy" class="pet-fill ok"></i></div><span class="pet-val" id="petVal-energy">85</span></div>
+              <div class="pet-stat"><span class="pet-ico">💕</span><span class="pet-name">Sosial</span><div class="pet-bar"><i id="petBar-social" class="pet-fill ok"></i></div><span class="pet-val" id="petVal-social">70</span></div>
+              <div class="pet-stat"><span class="pet-ico">😴</span><span class="pet-name">Tidur</span><div class="pet-bar"><i id="petBar-rest" class="pet-fill ok"></i></div><span class="pet-val" id="petVal-rest">80</span></div>
+              <div class="pet-stat"><span class="pet-ico">❤️</span><span class="pet-name">Bond</span><div class="pet-bar"><i id="petBar-bond" class="pet-fill bond"></i></div><span class="pet-val" id="petVal-bond">0</span></div>
+            </div>
+            <div class="task-section-title">Rawat</div>
+            <div class="play-grid pet-actions">
+              <button class="play-card" data-care="feed">🍖 Kasih Makan</button>
+              <button class="play-card" data-care="play">🎾 Ajak Main</button>
+              <button class="play-card" data-care="pet">🫳 Elus-elus</button>
+              <button class="play-card" data-care="sleep">😴 Tidurin</button>
+            </div>
+            <p class="hint pet-hint">Stat turun seiring waktu — bahkan pas app ditutup. Kalau lagi tidur, tap badanku 2× buat bangunin!</p>
+          </div>
+        </section>
+
       </main>
     </div>
 
@@ -391,8 +430,11 @@
       <form method="dialog" class="dlg-body">
         <h2>Pengaturan</h2>
         <p class="hint">
-          Mochi jalan <b>offline</b> pakai otak lokal. Aktifkan AI pintar lewat SumoPod —
-          Base URL & Model sudah terisi, tinggal masukkan API Key!
+          Mochi bekerja <b>hybrid</b>: hal yang dia yakin dijawab instan oleh otak lokal
+          (tugas, matematika, memori, power), sisanya dipakai LLM — gratis tanpa key
+          (best-effort), atau pakai API key sendiri di bawah.
+          <b>Key juga bisa ditaruh di file .env di folder app</b> (server-side, permanen —
+          tidak hilang walau ganti device/data browser dibersihkan). Salin .env.example → .env.
         </p>
         <label>Mesin AI
           <select id="setProvider">
@@ -409,6 +451,15 @@
         <label>API Key
           <input id="setKey" type="password" placeholder="sk-... (dari sumopod.com)" />
         </label>
+        <div class="key-test-row">
+          <button type="button" id="setKeyTest" class="btn ghost">🔌 Tes koneksi</button>
+          <span id="setKeyTestOut" class="hint" style="margin:0;"></span>
+        </div>
+        <p class="hint" style="margin:6px 0 0;">
+          Key gratis: <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com</a> (Groq, paling cepat) ·
+          <a href="https://platform.deepseek.com" target="_blank" rel="noopener">deepseek.com</a> ·
+          <a href="https://sumopod.com" target="_blank" rel="noopener">sumopod.com</a>
+        </p>
         <label>Model
           <input id="setModel" type="text" placeholder="gpt-5-nano" />
         </label>

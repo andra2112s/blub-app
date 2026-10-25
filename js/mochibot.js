@@ -16,7 +16,7 @@ const nowSec = () => performance.now() / 1000;
 
 const EXPR_BY_ID = Object.fromEntries(EXPRESSIONS.map((e) => [e.id, e]));
 
-const INK = '#0a0a0c';
+const INK = '#14141e';
 
 const FX_HOLD = {
   burst: 2400,
@@ -36,7 +36,8 @@ export const SHAPES_INFO = [
   { id: 'triangle', label: 'Segitiga' },
   { id: 'hexagone', label: 'Heksagon' },
   { id: 'nuage', label: 'Awan' },
-  { id: 'goutte', label: 'Tetes' }
+  { id: 'goutte', label: 'Tetes' },
+  { id: 'mochi3d', label: 'Mochi 3D' }
 ];
 
 const OLD_SHAPE_MAP = {
@@ -140,9 +141,41 @@ function isColorDark(rgbStr) {
   return lum < 0.25;
 }
 
+// Menghitung warna yang lebih gelap dari warna badan (mempertahankan saturasi & hue, bukan hitam)
+function shadeHex(hex, factor = 0.45) {
+  const parse = (h) => {
+    let clean = (h || '#14141e').replace(/^#/, '');
+    if (clean.length === 3) clean = clean.split('').map((c) => c + c).join('');
+    const v = parseInt(clean, 16);
+    return isNaN(v) ? [20, 20, 30] : [v >> 16 & 255, v >> 8 & 255, v & 255];
+  };
+  const [r, g, b] = parse(hex);
+  const dr = Math.round(Math.max(10, r * factor));
+  const dg = Math.round(Math.max(10, g * factor));
+  const db = Math.round(Math.max(12, b * factor));
+  return `#${[dr, dg, db].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// Menghitung varian lebih terang dari warna badan (tint ke arah putih, mempertahankan hue)
+function tintHex(hex, factor = 0.5) {
+  let clean = (hex || '#14141e').replace(/^#/, '');
+  if (clean.length === 3) clean = clean.split('').map((c) => c + c).join('');
+  const v = parseInt(clean, 16);
+  const [r, g, b] = isNaN(v) ? [20, 20, 30] : [v >> 16 & 255, v >> 8 & 255, v & 255];
+  const t = (x) => Math.round(x + (255 - x) * factor);
+  return `#${[t(r), t(g), t(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+
+let _blobUid = 0;
+
 export class BlobCharacter {
   constructor(svg, opts = {}) {
     this.svg = svg;
+    // Suffixe unique par instance : les ids de defs (gradients, clip) sont
+    // globaux au document, sans suffixe deux blobs se voleraient leurs defs.
+    this._uid = ++_blobUid;
+    const U = (id) => `${id}-${this._uid}`;
+    this._u = U;
     this.onPokeSound = opts.onPokeSound || (() => {});
     this.onBurstSound = opts.onBurstSound || (() => {});
     this.onQuip = opts.onQuip || (() => {});
@@ -154,7 +187,7 @@ export class BlobCharacter {
     svg.setAttribute('viewBox', '-158 -158 316 316');
 
     this.gBack = el('g');
-    this.bodyEl = el('path', { fill: INK });
+    this.bodyEl = el('path', { fill: INK, 'fill-opacity': '0.87' });
     this.gEyes = el('g');
     this.eyeEls = [el('path', { fill: 'none' }), el('path', { fill: 'none' })];
     this.mouthEl = el('path', { fill: 'none', 'stroke-width': '3.5', 'stroke-linecap': 'round' });
@@ -164,53 +197,202 @@ export class BlobCharacter {
 
     this.gEyes.append(...this.eyeEls, this.mouthEl);
 
-    /* ── 3D shading layer — clipped to body silhouette ── */
-    this.bodyEl.setAttribute('id', 'blobBodyPath');
+    /* ── Translucent Mochi Glass / Jelly Shader with Chocolate Core ── */
+    this.bodyEl.setAttribute('id', U('blobBodyPath'));
     const defs = el('defs');
-    const mkGrad = (id, color, op) => {
-      const g = el('radialGradient', { id });
-      g.append(
-        el('stop', { offset: '0%', 'stop-color': color, 'stop-opacity': op }),
-        el('stop', { offset: '60%', 'stop-color': color, 'stop-opacity': String(op * 0.4) }),
-        el('stop', { offset: '100%', 'stop-color': color, 'stop-opacity': '0' })
-      );
-      return g;
-    };
-    const clip = el('clipPath', { id: 'blobBodyClip' });
-    clip.append(el('use', { href: '#blobBodyPath' }));
-    // vertical gradient: atas agak muda → tengah netral → bawah agak gelap
-    const linGrad = el('linearGradient', {
-      id: 'blobShadeVert', gradientUnits: 'userSpaceOnUse',
-      x1: '0', y1: '-95', x2: '0', y2: '95'
+    const clip = el('clipPath', { id: U('blobBodyClip') });
+    clip.append(el('use', { href: `#${U('blobBodyPath')}` }));
+
+    // Chocolate Core Gradients (filling deep inside thick mochi skin)
+    // Stops otomatis mengikuti warna yang lebih gelap dari warna badan (bukan hitam)
+    const radChoco = el('radialGradient', {
+      id: U('blobChocoGrad'), cx: '0', cy: '10', r: '42', gradientUnits: 'userSpaceOnUse'
     });
-    linGrad.append(
-      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.24' }),
-      el('stop', { offset: '42%', 'stop-color': '#ffffff', 'stop-opacity': '0' }),
-      el('stop', { offset: '72%', 'stop-color': '#000000', 'stop-opacity': '0' }),
-      el('stop', { offset: '100%', 'stop-color': '#000000', 'stop-opacity': '0.22' })
+    this.chocoStop0 = el('stop', { offset: '0%', 'stop-color': shadeHex(INK, 0.30), 'stop-opacity': '0.78' });
+    this.chocoStop1 = el('stop', { offset: '45%', 'stop-color': shadeHex(INK, 0.48), 'stop-opacity': '0.55' });
+    this.chocoStop2 = el('stop', { offset: '75%', 'stop-color': shadeHex(INK, 0.65), 'stop-opacity': '0.22' });
+    this.chocoStop3 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.65), 'stop-opacity': '0' });
+    radChoco.append(this.chocoStop0, this.chocoStop1, this.chocoStop2, this.chocoStop3);
+
+    const radChocoHi = el('radialGradient', {
+      id: U('blobChocoHi'), cx: '-4', cy: '6', r: '26', gradientUnits: 'userSpaceOnUse'
+    });
+    this.chocoHiStop0 = el('stop', { offset: '0%', 'stop-color': shadeHex(INK, 0.22), 'stop-opacity': '0.50' });
+    this.chocoHiStop1 = el('stop', { offset: '80%', 'stop-color': shadeHex(INK, 0.22), 'stop-opacity': '0' });
+    radChocoHi.append(this.chocoHiStop0, this.chocoHiStop1);
+    this._lastCoreFill = INK;
+
+    // 1. Translucent vertical light wash: soft light passing through jelly body
+    const linVert = el('linearGradient', {
+      id: U('blobShadeVert'), gradientUnits: 'userSpaceOnUse',
+      x1: '0', y1: '-100', x2: '0', y2: '100'
+    });
+    linVert.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.35' }),
+      el('stop', { offset: '30%', 'stop-color': '#ffffff', 'stop-opacity': '0.08' }),
+      el('stop', { offset: '70%', 'stop-color': '#000000', 'stop-opacity': '0.10' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0.25' })
     );
-    defs.append(
-      linGrad,
-      mkGrad('blobShadeHi', '#ffffff', 0.16),
-      mkGrad('blobShadeLow', '#000000', 0.28),
-      mkGrad('blobShadeSpec', '#ffffff', 0.32),
-      clip
+
+    // 2. Subsurface scattering: soft inner light diffusing from center-belly
+    const radCore = el('radialGradient', {
+      id: U('blobMochiCore'), cx: '0', cy: '10', r: '95', gradientUnits: 'userSpaceOnUse'
+    });
+    radCore.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.30' }),
+      el('stop', { offset: '45%', 'stop-color': '#ffffff', 'stop-opacity': '0.12' }),
+      el('stop', { offset: '85%', 'stop-color': '#ffffff', 'stop-opacity': '0.02' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
     );
-    this.gShade = el('g', { 'clip-path': 'url(#blobBodyClip)', 'pointer-events': 'none' });
+
+    // 3. Soft top dome light
+    const radDome = el('radialGradient', {
+      id: U('blobShadeHi'), cx: '-18', cy: '-50', r: '105', gradientUnits: 'userSpaceOnUse'
+    });
+    radDome.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.38' }),
+      el('stop', { offset: '40%', 'stop-color': '#ffffff', 'stop-opacity': '0.12' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
+    );
+
+    // 4. Bottom bounce / caustic light: ground reflection in translucent belly
+    const radBounce = el('radialGradient', {
+      id: U('blobMochiBounce'), cx: '0', cy: '75', r: '85', gradientUnits: 'userSpaceOnUse'
+    });
+    radBounce.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.28' }),
+      el('stop', { offset: '55%', 'stop-color': '#ffffff', 'stop-opacity': '0.08' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
+    );
+
+    // 5. Fresnel inner rim glow: tinted rim light derived from body color
+    const linRim = el('linearGradient', {
+      id: U('blobRimGrad'), x1: '0', y1: '-1', x2: '0', y2: '1'
+    });
+    this.rimStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.75), 'stop-opacity': '0.70' });
+    this.rimStop1 = el('stop', { offset: '50%', 'stop-color': tintHex(INK, 0.40), 'stop-opacity': '0.20' });
+    this.rimStop2 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.72), 'stop-opacity': '0.50' });
+    linRim.append(this.rimStop0, this.rimStop1, this.rimStop2);
+
+    // 5b. Skin tone gradient: translucent skin shaded from body color
+    // (bright tint at top → deeper saturated shade at bottom), so the skin is not flat
+    const linSkin = el('linearGradient', {
+      id: U('blobSkinGrad'), gradientUnits: 'userSpaceOnUse',
+      x1: '-35', y1: '-105', x2: '35', y2: '115'
+    });
+    this.skinStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.55), 'stop-opacity': '0.70' });
+    this.skinStop1 = el('stop', { offset: '38%', 'stop-color': tintHex(INK, 0.20), 'stop-opacity': '0.35' });
+    this.skinStop2 = el('stop', { offset: '62%', 'stop-color': INK, 'stop-opacity': '0.14' });
+    this.skinStop3 = el('stop', { offset: '86%', 'stop-color': shadeHex(INK, 0.78), 'stop-opacity': '0.38' });
+    this.skinStop4 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.62), 'stop-opacity': '0.55' });
+    linSkin.append(this.skinStop0, this.skinStop1, this.skinStop2, this.skinStop3, this.skinStop4);
+
+    // 5c. Arm gradient (objectBoundingBox): same light direction as the skin per arm
+    const linArm = el('linearGradient', { id: U('blobArmGrad'), x1: '0', y1: '0', x2: '0.35', y2: '1' });
+    this.armStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.55), 'stop-opacity': '0.65' });
+    this.armStop1 = el('stop', { offset: '45%', 'stop-color': tintHex(INK, 0.18), 'stop-opacity': '0.22' });
+    this.armStop2 = el('stop', { offset: '100%', 'stop-color': shadeHex(INK, 0.72), 'stop-opacity': '0.45' });
+    linArm.append(this.armStop0, this.armStop1, this.armStop2);
+
+    // 6. Primary glossy glass/jelly specular highlight
+    const linSpec = el('linearGradient', {
+      id: U('blobShadeSpec'), x1: '0', y1: '0', x2: '1', y2: '1'
+    });
+    linSpec.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '0.80' }),
+      el('stop', { offset: '45%', 'stop-color': '#ffffff', 'stop-opacity': '0.30' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
+    );
+
+    defs.append(clip, radChoco, radChocoHi, linVert, radCore, radDome, radBounce, linRim, linSkin, linArm, linSpec);
+
+    // ── Stubby Cute Arms: Tangan melengkung organik menyatu dari badan (tanpa jari) ──
+    const ARM_PATH_L = 'M 0 0 C -22 3 -46 11 -52 23 C -57 33 -46 41 -32 38 C -18 35 -4 27 10 17 Z';
+    const ARM_PATH_R = 'M 0 0 C 22 3 46 11 52 23 C 57 33 46 41 32 38 C 18 35 4 27 -10 17 Z';
+
+    this.gArms = el('g', { class: 'blob-arms' });
+    this.armL = el('g', { class: 'blob-arm-l' });
+    this.armR = el('g', { class: 'blob-arm-r' });
+
+    this.armLBase = el('path', { d: ARM_PATH_L, fill: INK, 'fill-opacity': '0.80' });
+    this.armLShade = el('path', { d: ARM_PATH_L, fill: `url(#${U('blobArmGrad')})` });
+    this.armLHi = el('ellipse', { cx: '-18', cy: '10', rx: '11', ry: '4.5', fill: '#ffffff', opacity: '0.32', transform: 'rotate(-14 -18 10)' });
+    this.armL.append(this.armLBase, this.armLShade, this.armLHi);
+
+    this.armRBase = el('path', { d: ARM_PATH_R, fill: INK, 'fill-opacity': '0.80' });
+    this.armRShade = el('path', { d: ARM_PATH_R, fill: `url(#${U('blobArmGrad')})` });
+    this.armRHi = el('ellipse', { cx: '18', cy: '10', rx: '11', ry: '4.5', fill: '#ffffff', opacity: '0.32', transform: 'rotate(14 18 10)' });
+    this.armR.append(this.armRBase, this.armRShade, this.armRHi);
+
+    this.gArms.append(this.armL, this.armR);
+    this._lastArmFill = INK;
+    this._fsil = { s: 1, cx: 0, cy: 0, rot: 0 };
+
+    // Solid chocolate core (filling softly diffused inside thick translucent mochi skin)
+    this.gCore = el('g', { 'clip-path': `url(#${U('blobBodyClip')})`, 'pointer-events': 'none' });
+    this.chocoBase = el('ellipse', { cx: '0', cy: '14', rx: '40', ry: '34', fill: `url(#${U('blobChocoGrad')})` });
+    this.chocoHi = el('ellipse', { cx: '-3', cy: '10', rx: '24', ry: '18', fill: `url(#${U('blobChocoHi')})` });
+    this.gCore.append(this.chocoBase, this.chocoHi);
+
+    this.gShade = el('g', { 'clip-path': `url(#${U('blobBodyClip')})`, 'pointer-events': 'none' });
     this.gShade.append(
-      // vertical gradient wash — clipped to body silhouette
-      el('rect', { x: '-160', y: '-160', width: '320', height: '320', fill: 'url(#blobShadeVert)' }),
-      // broad dome light covering most of the body
-      el('ellipse', { cx: '-12', cy: '-48', rx: '135', ry: '108', fill: 'url(#blobShadeHi)' }),
-      // ambient occlusion: bottom-right
-      el('ellipse', { cx: '30', cy: '95', rx: '125', ry: '60', fill: 'url(#blobShadeLow)' }),
-      // tiny specular glint near the top edge
-      el('ellipse', { cx: '-56', cy: '-74', rx: '24', ry: '12', fill: 'url(#blobShadeSpec)', transform: 'rotate(-20 -56 -74)' })
+      // 1. Subsurface scattering glow
+      el('circle', { cx: '0', cy: '10', r: '95', fill: `url(#${U('blobMochiCore')})` }),
+      // 2. Translucent vertical wash
+      el('rect', { x: '-160', y: '-160', width: '320', height: '320', fill: `url(#${U('blobShadeVert')})` }),
+      // 2b. Skin tone gradient: body-color tint, bright top → deep bottom
+      el('use', { href: `#${U('blobBodyPath')}`, fill: `url(#${U('blobSkinGrad')})` }),
+      // 3. Soft top dome light
+      el('ellipse', { cx: '-18', cy: '-50', rx: '105', ry: '80', fill: `url(#${U('blobShadeHi')})` }),
+      // 4. Ground bounce ambient reflection in belly
+      el('ellipse', { cx: '0', cy: '75', rx: '85', ry: '45', fill: `url(#${U('blobMochiBounce')})` }),
+      // 5. Fresnel inner rim glow: wide translucent rim around mochi body
+      el('use', { href: `#${U('blobBodyPath')}`, fill: 'none', stroke: `url(#${U('blobRimGrad')})`, 'stroke-width': '16', opacity: '0.62' }),
+      // 6. Primary glossy glass/jelly specular pill
+      el('ellipse', { cx: '-40', cy: '-60', rx: '30', ry: '14', fill: `url(#${U('blobShadeSpec')})`, transform: 'rotate(-26 -40 -60)' }),
+      // 7. Bright pin-point specular glint
+      el('circle', { cx: '-50', cy: '-66', r: '4', fill: '#ffffff', opacity: '0.85' }),
+      // 8. Secondary soft sheen on right shoulder
+      el('ellipse', { cx: '50', cy: '-45', rx: '18', ry: '7', fill: '#ffffff', opacity: '0.20', transform: 'rotate(32 50 -45)' })
     );
+
+    /* ── Mochi 3D decor: blush + taburan gula (khas mochi foto referensi) ──
+       Disembunyikan kecuali shapeId === 'mochi3d'. */
+    this.gMochi3d = el('g', { 'clip-path': `url(#${U('blobBodyClip')})`, 'pointer-events': 'none', style: 'display:none' });
+    // Taburan gula halus — titik-titik kecil tersebar di seluruh badan
+    const sugarSeed = [
+      [-58,-42,1.6],[-38,-58,1.2],[-15,-64,1.8],[8,-66,1.3],[30,-58,1.6],[52,-44,1.4],
+      [-66,-18,1.5],[-44,-30,1.1],[-22,-44,1.9],[2,-48,1.4],[26,-40,1.7],[48,-26,1.2],
+      [62,-10,1.6],[-70,4,1.3],[-52,-8,1.8],[-30,-20,1.4],[-8,-28,1.6],[14,-30,1.2],
+      [36,-18,1.9],[56,-2,1.4],[-64,22,1.7],[-44,8,1.3],[-20,-4,1.6],[4,-10,1.4],
+      [28,0,1.8],[50,14,1.2],[-56,40,1.5],[-36,28,1.8],[-12,16,1.3],[12,14,1.7],
+      [34,26,1.4],[46,38,1.6],[-42,50,1.2],[-18,42,1.9],[8,38,1.4],[30,44,1.6],
+      [-8,58,1.3],[20,56,1.5],[-30,62,1.2]
+    ];
+    for (const [sx, sy, sr] of sugarSeed) {
+      this.gMochi3d.append(el('circle', {
+        cx: sx, cy: sy, r: sr, fill: '#ffffff', opacity: '0.5'
+      }));
+    }
+    // Blush pipi merah muda — khas mochi 3D
+    this.blushL = el('ellipse', { cx: '-34', cy: '20', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
+    this.blushR = el('ellipse', { cx: '34', cy: '20', rx: '13', ry: '8', fill: '#ff8fa8', opacity: '0.55' });
+    // Lidah kecil melet — ciri khas ekspresi gambar referensi
+    this.tongueEl = el('path', {
+      d: 'M -5 0 Q -5 10 0 10 Q 5 10 5 0 Q 0 3 -5 0 Z',
+      fill: '#ff7d9c', stroke: '#e05f7e', 'stroke-width': '1',
+      transform: 'translate(0, 34)'
+    });
+    this.gMochi3d.append(this.blushL, this.blushR, this.tongueEl);
+
+    // Kilau mata manik (mochi3d): titik putih kecil di pojok atas mata
+    this.glintL = el('circle', { r: '1.8', fill: '#ffffff', opacity: '0' });
+    this.glintR = el('circle', { r: '1.8', fill: '#ffffff', opacity: '0' });
+    this.gEyes.append(this.glintL, this.glintR);
 
     // All blob content wrapped in gBody so gaze tilt can move the whole body
     this.gBody = el('g');
-    this.gBody.append(this.gBack, this.bodyEl, this.gShade, this.gEyes, this.gFront);
+    this.gBody.append(this.gBack, this.gArms, this.bodyEl, this.gCore, this.gShade, this.gMochi3d, this.gEyes, this.gFront);
     svg.append(defs, this.gBody);
     this.gazeX = 0; this.gazeY = 0;
     this.gazeTargetX = 0; this.gazeTargetY = 0;
@@ -263,6 +445,36 @@ export class BlobCharacter {
     }
   }
 
+  _updateSkinColors(fill) {
+    if (this._lastCoreFill === fill) return;
+    this._lastCoreFill = fill;
+    // Chocolate core: darker body-derived shades
+    const cDeep = shadeHex(fill, 0.30);
+    const cMid = shadeHex(fill, 0.48);
+    const cEdge = shadeHex(fill, 0.65);
+    const cHi = shadeHex(fill, 0.22);
+    this.chocoStop0.setAttribute('stop-color', cDeep);
+    this.chocoStop1.setAttribute('stop-color', cMid);
+    this.chocoStop2.setAttribute('stop-color', cEdge);
+    this.chocoStop3.setAttribute('stop-color', cEdge);
+    this.chocoHiStop0.setAttribute('stop-color', cHi);
+    this.chocoHiStop1.setAttribute('stop-color', cHi);
+    // Translucent skin gradient: bright tint top → deep shade bottom
+    this.skinStop0.setAttribute('stop-color', tintHex(fill, 0.55));
+    this.skinStop1.setAttribute('stop-color', tintHex(fill, 0.20));
+    this.skinStop2.setAttribute('stop-color', fill);
+    this.skinStop3.setAttribute('stop-color', shadeHex(fill, 0.78));
+    this.skinStop4.setAttribute('stop-color', shadeHex(fill, 0.62));
+    // Fresnel rim: tinted edge light
+    this.rimStop0.setAttribute('stop-color', tintHex(fill, 0.75));
+    this.rimStop1.setAttribute('stop-color', tintHex(fill, 0.40));
+    this.rimStop2.setAttribute('stop-color', shadeHex(fill, 0.72));
+    // Arms: same light direction as skin
+    this.armStop0.setAttribute('stop-color', tintHex(fill, 0.55));
+    this.armStop1.setAttribute('stop-color', tintHex(fill, 0.18));
+    this.armStop2.setAttribute('stop-color', shadeHex(fill, 0.72));
+  }
+
   _loop() {
     const now = nowSec();
 
@@ -288,8 +500,75 @@ export class BlobCharacter {
         `translate(${(gx * 9).toFixed(1)} ${(gy * 5).toFixed(1)}) ` +
         `rotate(${(gx * 3).toFixed(1)}) skewX(${(gx * -4).toFixed(1)}) ` +
         `scale(${(1 - Math.abs(gx) * 0.045).toFixed(3)} ${(1 + Math.abs(gx) * 0.02).toFixed(3)})`);
+      if (this.gCore) {
+        const cx = (gx * 4.5).toFixed(1);
+        const cy = (gy * 3).toFixed(1);
+        this.gCore.setAttribute('transform', `translate(${cx} ${cy})`);
+      }
     } else if (this.gBody.hasAttribute('transform')) {
       this.gBody.removeAttribute('transform');
+      if (this.gCore && this.gCore.hasAttribute('transform')) this.gCore.removeAttribute('transform');
+    }
+
+    const curFill = this.bodyEl.getAttribute('fill') || INK;
+    this._updateSkinColors(curFill);
+
+    /* ── Animate stubby cute arms ── */
+    /* mochi3d : les oreilles/pattes sont deja dans la silhouette — pas de bras separes */
+    const isMochi3d = this.shapeId === 'mochi3d';
+    const armsHidden = isMochi3d;
+    if (this.gArms) this.gArms.style.display = armsHidden ? 'none' : '';
+    if (this.gMochi3d) this.gMochi3d.style.display = isMochi3d ? '' : 'none';
+    if (this.gArms && !armsHidden && !this._micMode && !this._timerMode) {
+      if (this._lastArmFill !== curFill) {
+        this._lastArmFill = curFill;
+        this.armLBase.setAttribute('fill', curFill);
+        this.armRBase.setAttribute('fill', curFill);
+      }
+
+      const isCheering = this.currentExpr === 'excite' || this.currentExpr === 'heureux' || this.currentExpr === 'hilare';
+      const isSleepy = this.mood === 'sleepy' || this.currentExpr === 'somnolent';
+
+      const isTri = this.shapeId === 'triangle';
+      const baseY = isTri ? 22 : 6;
+      const baseX = isTri ? 62 : 68;
+
+      const breath = Math.sin(now * 2.8) * 1.5;
+
+      let rotL = 0, rotR = 0;
+      let offY = breath;
+      let offX = 0;
+
+      if (isCheering) {
+        rotL = -42 + Math.sin(now * 8) * 6;
+        rotR = 42 - Math.sin(now * 8) * 6;
+        offY = -12 + Math.abs(Math.sin(now * 8)) * 3;
+      } else if (isSleepy) {
+        rotL = 12;
+        rotR = -12;
+        offY = 6 + breath * 0.5;
+      } else {
+        rotL = Math.sin(now * 2.5) * 2;
+        rotR = -Math.sin(now * 2.5) * 2;
+      }
+
+      // Lengan mengikuti siluet hidup (skala/posisi/rotasi dari engine) supaya
+      // tetap menempel saat tubuh mengecil, bergeser, atau berputar.
+      const fs = this._fsil;
+      const k = Math.max(0.2, Math.min(1, fs.s));
+      const cosR = Math.cos(fs.rot), sinR = Math.sin(fs.rot);
+      const rotDeg = fs.rot * 180 / Math.PI;
+      const ay = baseY + offY;
+      const lx = fs.cx + ((-baseX + offX) * cosR - ay * sinR) * k;
+      const ly = fs.cy + ((-baseX + offX) * sinR + ay * cosR) * k;
+      const rx = fs.cx + ((baseX - offX) * cosR - ay * sinR) * k;
+      const ry = fs.cy + ((baseX - offX) * sinR + ay * cosR) * k;
+
+      this.armL.setAttribute('transform', `translate(${lx.toFixed(1)}, ${ly.toFixed(1)}) rotate(${(rotL + rotDeg).toFixed(1)}) scale(${k.toFixed(2)})`);
+      this.armR.setAttribute('transform', `translate(${rx.toFixed(1)}, ${ry.toFixed(1)}) rotate(${(rotR + rotDeg).toFixed(1)}) scale(${k.toFixed(2)})`);
+      if (!this._burstActive) {
+        this.gArms.style.opacity = Math.max(0, Math.min(1, (fs.s - 0.38) / 0.22)).toFixed(2);
+      }
     }
 
     /* ── Mic mode: keep mic silhouette, gentle pulse, skip engine ── */
@@ -321,6 +600,9 @@ export class BlobCharacter {
 
     this.bodyEl.setAttribute('d', frame.bodyPath);
     this.bodyEl.setAttribute('opacity', frame.bodyAlpha.toFixed(2));
+    if (frame.silScale != null) {
+      this._fsil = { s: frame.silScale, cx: frame.silCx, cy: frame.silCy, rot: frame.silRot };
+    }
 
     /* ── Skip face rendering during burst, orbit, or dizzy ── */
     if (this._burstActive || this._orbitActive || this._dizzyActive) {
@@ -328,11 +610,24 @@ export class BlobCharacter {
       return;
     }
 
+    // mochi3d : mata manik gelap (bukan warna kertas) + kilau putih
+    let eyeCol = this.eyeColorCache;
+    if (isMochi3d) {
+      let bl = 0.5;
+      const hv = parseInt((curFill || '#14141e').replace('#', ''), 16);
+      if (!isNaN(hv)) {
+        const rr = hv >> 16 & 255, gg = hv >> 8 & 255, bb = hv & 255;
+        bl = (0.299 * rr + 0.587 * gg + 0.114 * bb) / 255;
+      }
+      eyeCol = bl > 0.32 ? '#4a2f33' : '#e8e4ec';
+    }
     for (let i = 0; i < 2; i++) {
       const eye = frame.eyes[i];
       const node = this.eyeEls[i];
+      const glint = i === 0 ? this.glintL : this.glintR;
       if (!eye || eye.alpha <= 0.01) {
         node.setAttribute('d', '');
+        if (glint) glint.setAttribute('opacity', '0');
         continue;
       }
       const ov = EYE_D_OVERRIDE[this.currentExpr];
@@ -345,13 +640,24 @@ export class BlobCharacter {
         node.setAttribute('transform', m ? `translate(${m[5]}, ${m[6]}) rotate(${rot.toFixed(1)})` : eye.matrix);
         // Ujung bulat: gambar sebagai stroke, bukan fill
         node.setAttribute('fill', 'none');
-        node.setAttribute('stroke', this.eyeColorCache);
+        node.setAttribute('stroke', eyeCol);
         node.setAttribute('stroke-width', ov.w);
         node.setAttribute('stroke-linecap', 'round');
+        if (glint) glint.setAttribute('opacity', '0');
       } else {
         node.setAttribute('transform', eye.matrix);
-        node.setAttribute('fill', this.eyeColorCache);
+        node.setAttribute('fill', eyeCol);
         node.setAttribute('stroke', 'none');
+        // Kilau manik: ikut posisi mata, offset pojok kiri-atas
+        if (glint) {
+          const gm = eye.matrix.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
+          if (gm && isMochi3d) {
+            glint.setAttribute('transform', `translate(${parseFloat(gm[5]) - 2.4}, ${parseFloat(gm[6]) - 3.4})`);
+            glint.setAttribute('opacity', (eye.alpha * 0.9).toFixed(2));
+          } else {
+            glint.setAttribute('opacity', '0');
+          }
+        }
       }
       node.setAttribute('opacity', eye.alpha.toFixed(2));
     }
@@ -400,10 +706,21 @@ export class BlobCharacter {
         this.mouthEl.setAttribute('d', mouthPath(finalShape));
         // Apply rotation matching eye tilt
         this.mouthEl.setAttribute('transform', `translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${avgRot.toFixed(1)})`);
-        this.mouthEl.setAttribute('stroke', this.eyeColorCache);
+        this.mouthEl.setAttribute('stroke', eyeCol);
         const mouthAlpha = Math.min(...eyePos.map((p) => p.a));
         this.mouthEl.setAttribute('opacity', mouthAlpha.toFixed(2));
+        // Lidah mochi3d mengikuti transform mulut — tapi disembunyikan saat
+        // ekspresi negatif (cemberut/sedih) karena melet tidak cocok
+        if (this.tongueEl) {
+          const tongueOK = !['frown', 'wavy'].includes(finalShape.type);
+          this.tongueEl.setAttribute('transform',
+            `translate(${cx.toFixed(1)}, ${cy.toFixed(1)}) rotate(${avgRot.toFixed(1)}) translate(0, 6)`);
+          this.tongueEl.setAttribute('opacity', (tongueOK ? mouthAlpha : 0).toFixed(2));
+        }
       }
+    }
+    if (this.tongueEl && this.mouthEl.getAttribute('d') === '') {
+      this.tongueEl.setAttribute('opacity', '0');
     }
 
     this._syncDots(frame.dots, frame.dotsBehind);
@@ -517,6 +834,8 @@ export class BlobCharacter {
     this._micSavedBodyD = this.bodyEl.getAttribute('d');
     this._micSavedBodyOpacity = this.bodyEl.getAttribute('opacity') || '1';
     this._micSavedBodyFill = this.bodyEl.getAttribute('fill') || '#0a0a0c';
+    if (this.gCore) this.gCore.style.display = 'none';
+    if (this.gArms) this.gArms.style.display = 'none';
 
     const svg = this.svg;
     const stage = svg.closest('.stage');
@@ -672,6 +991,8 @@ export class BlobCharacter {
         svg.style.transform = '';
         svg.style.filter = '';
         if (stage) stage.classList.remove('power');
+        if (self.gCore) self.gCore.style.display = '';
+        if (self.gArms) self.gArms.style.display = '';
         for (const e of eyeEls) e.setAttribute('opacity', '1');
         if (mouthEl) mouthEl.setAttribute('opacity', '1');
       } else {
@@ -740,6 +1061,8 @@ export class BlobCharacter {
     this._timerSavedBodyD = this.bodyEl.getAttribute('d');
     this._timerSavedBodyOpacity = this.bodyEl.getAttribute('opacity') || '1';
     this._timerSavedBodyFill = this.bodyEl.getAttribute('fill') || '#0a0a0c';
+    if (this.gCore) this.gCore.style.display = 'none';
+    if (this.gArms) this.gArms.style.display = 'none';
 
     const svg = this.svg;
     const bodyEl = this.bodyEl;
@@ -965,6 +1288,8 @@ export class BlobCharacter {
         // Remove timer-mode class (restore SVG size on desktop)
         const stage = svg.closest('.stage');
         if (stage) stage.classList.remove('timer-mode');
+        if (self.gCore) self.gCore.style.display = '';
+        if (self.gArms) self.gArms.style.display = '';
         if (self.mood === 'idle') self.engine.setState('idle', nowSec());
         for (const e of eyeEls) e.setAttribute('opacity', '1');
         if (mouthEl) mouthEl.setAttribute('opacity', '1');
@@ -1377,6 +1702,8 @@ export class BlobCharacter {
         const faceAlpha = (1 - ease).toFixed(2);
         for (const e of this.eyeEls) e.setAttribute('opacity', faceAlpha);
         if (this.mouthEl) this.mouthEl.setAttribute('opacity', faceAlpha);
+        if (this.gCore) this.gCore.style.opacity = faceAlpha;
+        if (this.gArms) this.gArms.style.opacity = faceAlpha;
 
         if (p >= 1) {
           // ── BANG! ──
@@ -1411,6 +1738,8 @@ export class BlobCharacter {
           this.bodyEl.setAttribute('opacity', '0');
           for (const e of this.eyeEls) e.setAttribute('opacity', '0');
           if (this.mouthEl) this.mouthEl.setAttribute('opacity', '0');
+          if (this.gCore) this.gCore.style.opacity = '0';
+          if (this.gArms) this.gArms.style.opacity = '0';
         }
         requestAnimationFrame(animBurst);
 
@@ -1460,6 +1789,8 @@ export class BlobCharacter {
           this.bodyEl.setAttribute('opacity', origOpacity || '1');
           for (const e of this.eyeEls) e.setAttribute('opacity', '1');
           if (this.mouthEl) this.mouthEl.setAttribute('opacity', '1');
+          if (this.gCore) this.gCore.style.opacity = '1';
+          if (this.gArms) this.gArms.style.opacity = '1';
           requestAnimationFrame(() => {
             if (!isActive()) return;
             svg.style.transform = 'scale(1)';

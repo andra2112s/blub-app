@@ -105,5 +105,11 @@ const server = createHttpServer(async (req, res) => {
 });
 
 server.listen(port, () => {
+  const provs = [];
+  if (process.env.SUMOPOD_API_KEY) provs.push('sumopod');
+  if (process.env.GROQ_API_KEY) provs.push('groq');
+  if (process.env.DEEPSEEK_API_KEY) provs.push('deepseek');
+  provs.push('pollinations (keyless)');
   console.log(`Dev server berjalan di http://localhost:${port}`);
+  console.log(`Rantai AI: ${provs.join(' → ')}`);
 });

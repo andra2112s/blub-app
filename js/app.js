@@ -2,6 +2,7 @@
 import { COLOR_BY_ID, mixHex } from './bloub-engine.js';
 import { createBrain, PERSONA, setPersona } from './brain.js';
 import { createMusicDancer } from './music.js';
+import { createPet } from './pet.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -52,6 +53,8 @@ const els = {
   setProvider: $('#setProvider'),
   setUrl: $('#setUrl'),
   setKey: $('#setKey'),
+  setKeyTest: $('#setKeyTest'),
+  setKeyTestOut: $('#setKeyTestOut'),
   setModel: $('#setModel'),
   setSys: $('#setSys'),
   memList: $('#memList'),
@@ -126,7 +129,9 @@ const els = {
   meditasiGear: $('#meditasiGear'),
   meditasiOpts: $('#meditasiOpts'),
   meditasiPause: $('#meditasiPause'),
-  meditasiStop: $('#meditasiStop')
+  meditasiStop: $('#meditasiStop'),
+  panelPet: $('#panelPet'),
+  petHud: $('#petHud')
 };
 
 /* ── Ground shadow: proper shadow physics ── */
@@ -342,11 +347,24 @@ function getTtsConfig() {
   } catch { return { enabled: false, key: '', voice: 'Chloe' }; }
 }
 
+/* Bersihkan teks untuk TTS: buang mood tag, link markdown, URL telanjang,
+   pipa tabel, dan simbol markdown — biar yang dibacakan rapi. */
+function ttsClean(text) {
+  return String(text)
+    .replace(/\[mood:\w+\]/gi, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/\|/g, ' ')
+    .replace(/[*_#`>]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 async function speakMiMo(text) {
   if (mimoLoading) return;
   const cfg = getTtsConfig();
   if (!cfg.key) return false;
-  const cleanText = text.replace(/[*_#`>]/g, '').replace(/\$\{PERSONA\}/g, PERSONA).slice(0, 500);
+  const cleanText = ttsClean(text).replace(/\$\{PERSONA\}/g, PERSONA).slice(0, 500);
   if (!cleanText) return false;
 
   mimoLoading = true;
@@ -402,7 +420,7 @@ function stopMiMo() {
 function speak(text) {
   if (muted) return;
   const cfg = getTtsConfig();
-  const cleanText = text.replace(/[*_#`>]/g, '').slice(0, 300);
+  const cleanText = ttsClean(text).slice(0, 300);
 
   // Try MiMo TTS first if enabled; gagal (key salah/network) → jatuh ke suara browser
   if (cfg.enabled && cfg.key) {
@@ -540,21 +558,41 @@ async function send(rawText) {
   openChatSidebar();
   idleAnims.stop();
   els.idleRadial.classList.add('hidden');
+  // Fokus balik hanya kalau user memang lagi ngetik / di desktop —
+  // di HP jangan memaksa keyboard kebuka pas balasan tampil.
+  const keepFocus = document.activeElement === els.input || chatMqDesktop.matches;
   els.input.value = '';
   addMsg('user', text);
   showTyping(true);
   blob.setState('think');
   emotion.markInteraction('chat');
+  pet.onChat();
+
+  // Streaming: balasan AI muncul progresif di gelembung chat, blob ikut "bicara"
+  let streamDiv = null;
+  let streamClean = '';
+  const onDelta = (full) => {
+    const clean = String(full).replace(/\[mood:\w+\]\s*/gi, '');
+    if (!streamDiv) { showTyping(false); streamDiv = addMsg('bot', ''); }
+    if (clean !== streamClean) {
+      streamClean = clean;
+      streamDiv.innerHTML = mdRender(clean);
+      els.log.scrollTop = els.log.scrollHeight;
+      blob.talk(true);
+    }
+  };
 
   let res;
   try {
-    res = await brain.reply(text);
+    res = await brain.reply(text, onDelta);
   } catch {
     res = { text: 'Aduh, otak blob sempat ngambek. Coba lagi ya!', state: 'sad' };
   }
+  blob.talk(false);
 
   showTyping(false);
-  addMsg('bot', res.text);
+  if (streamDiv) streamDiv.innerHTML = mdRender(String(res.text).replace(/\[mood:\w+\]\s*/gi, ''));
+  else addMsg('bot', res.text);
   speak(res.text);
   if (res.changed) renderTasksPanel();
   if (res.colorId && res.effect !== 'glow' && res.effect !== 'glowSet') blob.setColorById(res.colorId);
@@ -590,7 +628,7 @@ async function send(rawText) {
 
   busy = false;
   idleAnims.resume();
-  els.input.focus({ preventScroll: true });
+  if (keepFocus) els.input.focus({ preventScroll: true });
 }
 
 const idlePhrases = [
@@ -602,12 +640,29 @@ const idlePhrases = [
   'Eh, tahu nggak kalau aku bisa inget nama kamu?'
 ];
 
+const idlePhrasesEn = [
+  'Psst… poke me if you\'re bored.',
+  `${PERSONA} ${PERSONA}~`,
+  'You look super focused… take a little break?',
+  'Am I sleepy or are YOU making me sleepy? 😴',
+  'Hello? Still there?',
+  'Hey, did you know I can remember your name?'
+];
+
 const sadPhrases = [
   'Kamu lagi sibuk ya? 🥺',
   'Aku nungguin kamu di sini…',
   'Sepi banget… kamunya kemana nih?',
   `Jangan lama-lama ya, ${PERSONA} kangen...`,
   'Halo? Kamu masih ada? 💔'
+];
+
+const sadPhrasesEn = [
+  'Busy, huh? 🥺',
+  'I\'ll be right here waiting…',
+  'It\'s so quiet… where did you go?',
+  `Don't be too long, ${PERSONA} misses you…`,
+  'Hello? Are you still there? 💔'
 ];
 
 const cryPhrases = [
@@ -617,12 +672,23 @@ const cryPhrases = [
   'Aku mikir kamu udah nggak balik lagi… 😢'
 ];
 
+const cryPhrasesEn = [
+  'Aww… you were gone so long… 😭',
+  'I\'m crying… I missed you…',
+  `Don't leave ${PERSONA} all alone… 💧`,
+  'I thought you\'d never come back… 😢'
+];
+
+const ambient = () => brain.getLang() === 'en'
+  ? { idle: idlePhrasesEn, sad: sadPhrasesEn, cry: cryPhrasesEn }
+  : { idle: idlePhrases, sad: sadPhrases, cry: cryPhrases };
+
 function scheduleIdle() {
   setTimeout(() => {
     if (!busy && blob.getState() === 'idle' && !emotion.isAway()) {
-      const phrases = emotion.getPhase() === 'sad' ? sadPhrases
-        : emotion.getPhase() === 'cry' ? cryPhrases
-        : idlePhrases;
+      const phase = emotion.getPhase();
+      const sets = ambient();
+      const phrases = phase === 'sad' ? sets.sad : phase === 'cry' ? sets.cry : sets.idle;
       showBubble(phrases[Math.floor(Math.random() * phrases.length)]);
     }
     scheduleIdle();
@@ -821,9 +887,16 @@ const emotion = (function() {
   }
 
   function init() {
-    ['pointerdown', 'pointermove', 'keydown', 'click'].forEach(ev => {
-      document.addEventListener(ev, () => markInteraction(ev === 'pointerdown' ? 'poke' : 'touch'), { passive: true });
-    });
+    // pointermove bisa nyala ratusan kali per detik — throttle 1x/detik supaya
+    // timer emosi nggak di-reset terus dan blob tetap bisa masuk fase sleepy/sad.
+    let lastMoveMark = 0;
+    document.addEventListener('pointerdown', () => markInteraction('poke'), { passive: true });
+    document.addEventListener('pointermove', () => {
+      const now = Date.now();
+      if (now - lastMoveMark >= 1000) { lastMoveMark = now; markInteraction('touch'); }
+    }, { passive: true });
+    document.addEventListener('keydown', () => markInteraction('touch'), { passive: true });
+    document.addEventListener('click', () => markInteraction('touch'), { passive: true });
     scheduleEmotion();
   }
 
@@ -945,17 +1018,79 @@ function initSettings() {
     els.setTtsKey.value = cfg.ttsKey || '';
     els.setTtsVoice.value = cfg.ttsVoice || 'Chloe';
     els.setTtsEnabled.checked = !!cfg.ttsEnabled;
+    syncKeyPlaceholder();
     renderMemoryList();
     els.settingsDlg.showModal();
   };
   els.btnSettings.addEventListener('click', open);
-  // Pilih Groq → isi default endpoint + model kalau masih kosong
+  // Pilih provider → isi default endpoint + model + placeholder key yang tepat
+  const KEY_PLACEHOLDER = {
+    '': 'sk-... (dari sumopod.com)',
+    server: '— tidak perlu (pakai AI gratis server)',
+    openai: 'sk-... (key provider-mu)',
+    groq: 'gsk_... (gratis dari console.groq.com)',
+    anthropic: 'sk-ant-... (dari console.anthropic.com)'
+  };
+  const syncKeyPlaceholder = () => {
+    if (els.setKey) els.setKey.placeholder = KEY_PLACEHOLDER[els.setProvider.value] ?? KEY_PLACEHOLDER[''];
+  };
   els.setProvider.addEventListener('change', () => {
+    syncKeyPlaceholder();
     if (els.setProvider.value === 'groq') {
       if (!els.setUrl.value.trim()) els.setUrl.value = 'https://api.groq.com/openai/v1';
       if (!els.setModel.value.trim()) els.setModel.value = 'openai/gpt-oss-120b';
     }
   });
+  // Tes koneksi: coba 1 permintaan mini ke provider yang sedang diisi —
+  // jawab langsung pertanyaan "sudah terpasang belum?"
+  els.setKeyTest?.addEventListener('click', async () => {
+    const out = els.setKeyTestOut;
+    if (!out) return;
+    out.textContent = '⏳ Menguji…';
+    const provider = els.setProvider.value;
+    const url = els.setUrl.value.trim().replace(/\/+$/, '');
+    const key = els.setKey.value.trim();
+    const model = els.setModel.value.trim();
+    const fail = (msg) => { out.textContent = '❌ ' + msg; };
+    try {
+      let res;
+      if (provider === 'anthropic') {
+        if (!key || !model) return fail('Isi API Key & Model dulu');
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+          body: JSON.stringify({ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] }),
+          signal: AbortSignal.timeout(15000)
+        });
+      } else if (provider === 'server' || (!url && !key && !model)) {
+        // Rantai server (termasuk AI gratis keyless)
+        res = await fetch(location.origin + '/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }] }),
+          signal: AbortSignal.timeout(25000)
+        });
+      } else {
+        if (!url || !key || !model) return fail('Lengkapi Base URL, API Key, dan Model dulu');
+        res = await fetch(url + '/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify({ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] }),
+          signal: AbortSignal.timeout(15000)
+        });
+      }
+      if (res.ok) {
+        out.textContent = '✅ Koneksi OK — AI siap!';
+        playPop();
+      } else {
+        const j = await res.json().catch(() => ({}));
+        fail(`Gagal (${res.status}) ${j.error?.message || j.error || ''}`.trim().slice(0, 80));
+      }
+    } catch (e) {
+      fail('Gagal: ' + (e.name === 'TimeoutError' ? 'timeout' : e.message || 'network'));
+    }
+  });
+
   els.setSave.addEventListener('click', () => {
     store.set(
       'Mochi.settings',
@@ -1044,27 +1179,48 @@ function restoreChat() {
 
 function greet(forceNew = false) {
   if (!isOnboarded()) return;
+  const en = brain.getLang() === 'en';
   const visited = store.get('Mochi.visited', '') === String(new Date().toDateString());
   const mem = brain.memory();
   const namePart = mem.name ? `, ${mem.name}` : '';
   if (forceNew || !visited) {
     const c = brain.tasks.getCounts();
-    const brief = (c.pendingTodos || c.upcomingReminders || c.overdueReminders)
-      ? `\n\n📋 ${c.pendingTodos} tugas pending, ${c.upcomingReminders} pengingat mendatang${c.overdueReminders ? `, ${c.overdueReminders} sudah lewat` : ''}.`
-      : '';
+    // Pengingat lewat disampaikan dengan tawaran bantuan, bukan sekadar hitungan
+    let brief = '';
+    if (c.overdueReminders) {
+      brief += en
+        ? `\n\n⏰ ${c.overdueReminders} of your reminders are overdue — open 📋 Tasks, or just tell me to snooze/complete them.`
+        : `\n\n⏰ ${c.overdueReminders} pengingatmu sudah lewat — buka 📋 Tugas, atau bilang aja mau ditunda/ditandai selesai.`;
+    } else if (c.pendingTodos || c.upcomingReminders) {
+      brief += en
+        ? `\n\n📋 ${c.pendingTodos} pending tasks, ${c.upcomingReminders} upcoming reminders.`
+        : `\n\n📋 ${c.pendingTodos} tugas pending, ${c.upcomingReminders} pengingat mendatang.`;
+    }
+    // Sentuhan caring sesuai waktu — asisten yang perhatikan ritme harinya
+    const h = new Date().getHours();
+    let care = '';
+    if (h >= 23 || h < 4) care = en ? '\n\n🌙 It\'s really late — don\'t stay up too long, get proper rest.' : '\n\n🌙 Udah larut banget nih — jangan begadang ya, istirahat yang cukup.';
+    else if (h < 10) care = en ? '\n\n☀️ Good morning energy! Don\'t skip breakfast.' : '\n\n☀️ Semangat pagi! Jangan skip sarapan ya.';
+    else if (h >= 12 && h < 14) care = en ? '\n\n🍚 Had lunch yet?' : '\n\n🍚 Udah makan siang belum?';
+    else if (h >= 18 && h < 21) care = en ? '\n\n🌆 Chill time — how was your day?' : '\n\n🌆 Waktunya santai — gimana harimu hari ini?';
+    // Lanjutan mood: kalau terakhir kali sedih, sambut dengan lebih hangat
+    if (mem.mood === 'sedih') {
+      care += en ? '\n\nYou were feeling down yesterday… hope today is kinder to you 💜' : '\n\nKemarin kamu lagi down… semoga hari ini lebih baik ya 💜';
+      brain.setMood('netral');
+    }
     setTimeout(() => {
       const msg = forceNew
-        ? `Ingatan bersih! Aku ${PERSONA}. Siapa nama kamu?`
+        ? en ? `Memory cleared! I'm ${PERSONA}. What's your name?` : `Ingatan bersih! Aku ${PERSONA}. Siapa nama kamu?`
         : mem.name
-          ? `Halo lagi${namePart}! Kangen nggak sama blob hitam yang satu ini?`
-          : `Hai! Aku ${PERSONA} 🫧 Coba colek badanku, atau tap tombol blob di bawah lalu pilih Chat!`;
-      addMsg('bot', msg + brief);
-      showBubble(mem.name ? 'Balik lagi!' : 'Halo!');
+          ? en ? `Hey again${namePart}! Miss this squishy black blob?` : `Halo lagi${namePart}! Kangen nggak sama blob hitam yang satu ini?`
+          : en ? `Hi! I'm ${PERSONA} 🫧 Poke my body, or tap the blob button below and pick Chat!` : `Hai! Aku ${PERSONA} 🫧 Coba colek badanku, atau tap tombol blob di bawah lalu pilih Chat!`;
+      addMsg('bot', msg + brief + care);
+      showBubble(mem.name ? (en ? 'You\'re back!' : 'Balik lagi!') : (en ? 'Hi!' : 'Halo!'));
       blob.setState('happy', { holdMs: 2000 });
     }, 700);
     store.set('Mochi.visited', String(new Date().toDateString()));
   } else {
-    showBubble(`${PERSONA}~ kamu balik!`);
+    showBubble(en ? `${PERSONA}~ you're back!` : `${PERSONA}~ kamu balik!`);
   }
 }
 
@@ -1249,6 +1405,39 @@ const idleAnims = startIdleAnimations(els.svg, {
   onIdleStart: (idleType) => showIdleBadge(idleType),
   onIdleEnd: () => hideIdleBadge()
 });
+
+/* Pet companion system — drives ala Tamagotchi (port dari pevo PetDrives) */
+const pet = createPet({ store, blob, showBubble, playPop, emotion, isBusy: () => busy, toast });
+const CARE_ACTIONS = { feed: 'feed', play: 'play', pet: 'petHim', sleep: 'toggleSleep' };
+function handleCareClick(e) {
+  const b = e.target.closest('[data-care]');
+  if (!b) return;
+  const fn = pet[CARE_ACTIONS[b.dataset.care]];
+  if (fn) fn(b); // tombolnya dipakai sebagai titik awal emoji makanan terbang
+}
+let hudCollapseTimer = null;
+function collapseHud() { els.petHud?.classList.remove('open'); }
+function expandHud() {
+  if (!els.petHud) return;
+  els.petHud.classList.add('open');
+  clearTimeout(hudCollapseTimer);
+  hudCollapseTimer = setTimeout(collapseHud, 6000);
+}
+els.petHud?.addEventListener('click', (e) => {
+  if (e.target.closest('#petHudMood')) {
+    if (!els.petHud.classList.contains('open')) { expandHud(); return; }
+    collapseHud();
+    openPanel('panelPet');
+    pet.render();
+    return;
+  }
+  handleCareClick(e);
+  if (e.target.closest('[data-care]')) expandHud();
+});
+document.addEventListener('pointerdown', (e) => {
+  if (els.petHud?.classList.contains('open') && !e.target.closest('#petHud')) collapseHud();
+});
+if (els.panelPet) els.panelPet.addEventListener('click', handleCareClick);
 
 const musicDancer = createMusicDancer(els.svg, blob);
 document.getElementById('musicMic')?.addEventListener('click', async () => {
@@ -2031,6 +2220,7 @@ els.svg.addEventListener('pointerup', (e) => {
     blob.poke();
     playPop();
     emotion.markInteraction('poke');
+    pet.onPoke();
     dragStartAngle = null;
     return;
   }
@@ -2041,6 +2231,7 @@ els.svg.addEventListener('pointerup', (e) => {
     blob.poke();
     playPop();
     emotion.markInteraction('poke');
+    pet.onPoke();
   } else {
     const dragDist = Math.hypot(blobOffsetX, blobOffsetY);
     if (dragDist > 20) {
@@ -2264,6 +2455,7 @@ els.radialMenu.addEventListener('click', (e) => {
   else if (f === 'tasks') { openPanel('panelTasks'); renderTasksPanel(); }
   else if (f === 'pomodoro') { closeRadialMenu(); startBlobTimer(); }
   else if (f === 'fun') openPanel('panelFun');
+  else if (f === 'pet') { openPanel('panelPet'); pet.render(); }
   else if (f === 'idletest') { closeRadialMenu(); els.idleRadial.classList.remove('hidden'); }
   else if (f === 'meditasi') { closeRadialMenu(); startMeditasi(); }
 });
@@ -2787,6 +2979,10 @@ function applyBlobTransform3D() {
 els.stage.addEventListener('pointerdown', (e) => {
   // Only trigger if pointer starts OUTSIDE the blob SVG
   if (e.target === els.svg || els.svg.contains(e.target)) return;
+  // Jangan curi klik elemen interaktif di dalam stage (tombol HUD pet, dll):
+  // setPointerCapture di stage membuat event click-nya tidak pernah sampai
+  // ke tombolnya, jadi aksi "Kasih Makan" dsb terasa mati.
+  if (e.target.closest('button, a, input, select, textarea, #petHud')) return;
   stageSwipeActive = true;
   stopPhysics();
   els.svg.style.transition = 'none';
@@ -3186,7 +3382,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v127';
+const APP_VERSION = 'v138';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
@@ -3235,6 +3431,7 @@ setInterval(checkReminders, 30000);
 registerSW();
 scheduleIdle();
 emotion.init();
+pet.init(els.panelPet, els.petHud);
 
 console.info('[Mochi] build', APP_VERSION, '| persona:', PERSONA);
 applyPersonaName();
