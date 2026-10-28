@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollow — semua ekspresi</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: linear-gradient(135deg, #fde8f0, #efeafe 45%, #e3f1fd); min-height: 100vh; color: #222; }
+  h1 { font-size: 18px; margin: 18px 20px 4px; }
+  p { margin: 0 20px 14px; color: #666; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; padding: 0 20px 30px; }
+  .card { background: rgba(255,255,255,.55); border-radius: 14px; padding: 8px; text-align: center; cursor: pointer; }
+  .card:hover { background: rgba(255,255,255,.85); }
+  canvas { width: 100%; aspect-ratio: 1; display: block; }
+  b { display: block; margin-top: 2px; }
+  small { color: #888; }
+</style>
+</head>
+<body>
+<h1>Hollow — semua ekspresi (live loop)</h1>
+<p>Semua loop diputar bersamaan, 12 fps. Ini file asli yang dipakai app (assets/anim/*-sheet.webp).</p>
+<div class="grid" id="grid"></div>
+<script type="module">
+  const LOOPS = {
+    idle: [48, 8, 'diam / default'], happy: [48, 8, 'senang'], excite: [48, 8, 'heboh · juga saat bicara'],
+    think: [48, 8, 'mikir'], listen: [48, 8, 'mendengar (mic)'], sad: [48, 8, 'sedih'],
+    sleepy: [60, 10, 'tidur / ngantuk'], surpris: [48, 8, 'kaget · saat dicolek'], scare: [48, 8, 'takut'],
+    doubt: [48, 8, 'curiga'], confuse: [48, 8, 'bingung'], proud: [48, 8, 'bangga'],
+    shy: [48, 8, 'malu'], bored: [48, 8, 'bosan'], love: [48, 8, 'sayang']
+  };
+  const CELL = 320, FPS = 12, grid = document.getElementById('grid'), items = [];
+  for (const [m, [frames, cols, desc]] of Object.entries(LOOPS)) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.title = 'Klik: salin perintah console untuk memutar ini di app';
+    card.innerHTML = `<canvas width="${CELL}" height="${CELL}"></canvas><b>${m}</b><small>${desc}</small>`;
+    card.onclick = () => navigator.clipboard?.writeText(`hollow.play('${m}')`);
+    grid.appendChild(card);
+    const img = new Image();
+    img.src = `../assets/anim/mochi-${m}-sheet.webp?v=${Date.now()}`;
+    items.push({ ctx: card.querySelector('canvas').getContext('2d'), img, frames, cols });
+  }
+  const tick = () => {
+    const n = Math.floor(performance.now() / (1000 / FPS));
+    for (const { ctx, img, frames, cols } of items) {
+      if (!img.naturalWidth) continue;
+      const i = n % frames;
+      ctx.clearRect(0, 0, CELL, CELL);
+      ctx.drawImage(img, (i % cols) * CELL, Math.floor(i / cols) * CELL, CELL, CELL, 0, 0, CELL, CELL);
+    }
+    requestAnimationFrame(tick);
+  };
+  tick();
+</script>
+</body>
+</html>

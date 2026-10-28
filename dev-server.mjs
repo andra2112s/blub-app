@@ -51,6 +51,10 @@ let chatHandler = null;
 try {
   chatHandler = (await import('./api/chat.js')).default;
 } catch {}
+let manifestHandler = null;
+try {
+  manifestHandler = (await import('./api/manifest.js')).default;
+} catch {}
 
 function shimRes(res) {
   res.status = (code) => { res.statusCode = code; return res; };
@@ -79,6 +83,10 @@ const server = createHttpServer(async (req, res) => {
     if (urlPath === '/api/chat' && chatHandler) {
       req.body = await readBody(req);
       return await chatHandler(req, shimRes(res));
+    }
+
+    if (urlPath === '/manifest.json' && manifestHandler) {
+      return manifestHandler(req, shimRes(res));
     }
 
     if (urlPath === '/' || urlPath.endsWith('/')) {

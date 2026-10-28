@@ -308,8 +308,8 @@ var EXPRESSIONS = [
   {
     // un œil franchement plus fermé que l'autre
     id: "mefiant",
-    gaze: { yaw: 12, pitch: 6, roll: -6 },
-    split: 16,
+    gaze: { yaw: 5, pitch: 6, roll: -6 },
+    split: 22,
     eyes: [eye(0.21, 0.4), eye(0.22, 0.15)]
   },
   {
@@ -625,19 +625,22 @@ var capsule = profileFromPolygon(hullOfCircles(-0.42, 0, 0.62, 0.42, 0, 0.62), 0
 // mochi 3D : dome large et lisse — oreilles, pattes et bosse sont dessinees
 // en elements separes (mochibot) pour garder des bords propres.
 var mochi3d = normalize(superellipseProfile(3.4, 1.18, 0.82), 1.0);
-// fantome : drap haut etroit — cotes droits + ourlet a vagues profondes
-var ghost3d = normalize(
-  unionOfCirclesProfile([
-    { x: 0, y: -0.42, r: 0.42 },
-    { x: 0, y: -0.05, r: 0.56 },
-    { x: 0, y: 0.28, r: 0.6 },
-    { x: -0.44, y: 0.58, r: 0.17 },
-    { x: -0.15, y: 0.62, r: 0.18 },
-    { x: 0.15, y: 0.62, r: 0.18 },
-    { x: 0.44, y: 0.58, r: 0.17 }
-  ]),
-  1.12
-);
+// fantome "Arcade" : kubah bulat, sisi tegak, ourlet 4 gigi runcing (gaya pac-man)
+function arcadeGhost(w = 0.62, sh = -0.2, top = -0.78, hem = 0.6, tip = 0.84, teeth = 4) {
+  const pts = [];
+  for (let i = 0; i <= 24; i++) {
+    const a = Math.PI + (i / 24) * Math.PI;
+    pts.push({ x: w * Math.cos(a), y: sh + (sh - top) * Math.sin(a) });
+  }
+  const step = (2 * w) / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const x0 = w - i * step;
+    pts.push({ x: x0, y: hem }, { x: x0 - step / 2, y: tip });
+  }
+  pts.push({ x: -w, y: hem });
+  return pts;
+}
+var ghost3d = normalize(profileFromPolygon(arcadeGhost(), 0, 0), 1.12);
 var SHAPES = [
   { id: "cercle", radii: new Array(PROFILE_SAMPLES).fill(1) },
   { id: "galet", radii: pebble },

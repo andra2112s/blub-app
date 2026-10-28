@@ -1,4 +1,4 @@
-﻿const CACHE = 'Mochi-v143';
+﻿const CACHE = 'Mochi-v152';
 const ASSETS = [
   './',
   './index.html',
@@ -7,10 +7,18 @@ const ASSETS = [
   './js/mochibot.js',
   './js/brain.js',
   './js/tasks.js',
+  './js/skills/index.js',
+  './js/skills/toonflow.js',
+  './js/skills/studio.js',
+  './js/studio.js',
   './js/music.js',
   './js/pet.js',
+  './js/painted.js',
   './js/app.js',
   './manifest.webmanifest',
+  './assets/anim/mochi-idle-sheet.webp',
+  './assets/anim/mochi-happy-sheet.webp',
+  './assets/anim/mochi-sleepy-sheet.webp',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

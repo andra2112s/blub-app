@@ -29,16 +29,14 @@ const FX_HOLD = {
 };
 
 export const SHAPES_INFO = [
-  { id: 'cercle', label: 'Bulat' },
   { id: 'galet', label: 'Cibul' },
   { id: 'squircle', label: 'Squircle' },
-  { id: 'capsule', label: 'Kapsul' },
   { id: 'triangle', label: 'Segitiga' },
   { id: 'hexagone', label: 'Heksagon' },
   { id: 'nuage', label: 'Awan' },
-  { id: 'goutte', label: 'Tetes' },
   { id: 'mochi3d', label: 'Mochi' },
-  { id: 'ghost3d', label: 'Hantu' }
+  { id: 'ghost3d', label: 'Hantu' },
+  { id: 'lukis', label: 'Hollow' }
 ];
 
 const OLD_SHAPE_MAP = {
@@ -91,10 +89,12 @@ const MOUTH_SHAPES = {
    Dipakai dengan matriks posisi/rotasi engine apa adanya. */
 const EYE_D_OVERRIDE = {
   // Menangis: mata terpejam melengkung — stroke ujung bulat
-  triste:  { d: 'M -8.5 2 Q 0 -9 8.5 2', w: 4 },
+  triste:  { d: 'M -8.5 -2 Q 0 9 8.5 -2', w: 5.5 },
   // Senang/tertawa: mata tertutup ∩∩ gemuk (gaya ^_^), ujung bulat
-  heureux: { d: 'M -10 3 Q 0 -12 10 3', w: 4.5 },
-  hilare:  { d: 'M -10 3 Q 0 -12 10 3', w: 4.5 }
+  heureux: { d: 'M -10 3 Q 0 -7 10 3', w: 6 },
+  hilare:  { d: 'M -10 3 Q 0 -12 10 3', w: 6 },
+  // Bosan: garis mata hampir lurus, melengkung tipis ke atas
+  blase:   { d: 'M -10 2 Q 0 -3 10 2', w: 5 }
 };
 
 function mouthPath(shape) {
@@ -113,7 +113,7 @@ function mouthPath(shape) {
 
 export function shapePreviewPath(id) {
   const rec = SHAPE_BY_ID.get(id);
-  if (!rec) return '';
+  if (!rec) return id === 'lukis' ? 'M0 -58C38 -58 64 -34 64 -2C64 30 36 52 0 52C-36 52 -64 30 -64 -2C-64 -34 -38 -58 0 -58Z' : '';
   const sil = { radii: rec.radii, rot: 0, cx: 0, cy: 0, sx: 1, sy: 1 };
   return closedPath(toPoints(sil, 52));
 }
@@ -183,12 +183,13 @@ export class BlobCharacter {
 
     const requested = OLD_SHAPE_MAP[opts.shape] || opts.shape;
     this.shapeId = SHAPE_BY_ID.has(requested) ? requested : 'cercle';
+    this._painted = requested === 'lukis';   // mode lukis: shapeId tetap shape valid, yang tampil flipbook
 
     svg.innerHTML = '';
     svg.setAttribute('viewBox', '-158 -158 316 316');
 
     this.gBack = el('g');
-    this.bodyEl = el('path', { fill: INK, 'fill-opacity': this.shapeId === 'ghost3d' ? '0.58' : '0.87' });
+    this.bodyEl = el('path', { fill: INK, 'fill-opacity': this.shapeId === 'ghost3d' ? '0' : '0.87' });
     this.gEyes = el('g');
     this.eyeEls = [el('path', { fill: 'none' }), el('path', { fill: 'none' })];
     this.mouthEl = el('path', { fill: 'none', 'stroke-width': '3.5', 'stroke-linecap': 'round' });
@@ -306,7 +307,26 @@ export class BlobCharacter {
       el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
     );
 
-    defs.append(clip, radChoco, radChocoHi, linVert, radCore, radDome, radBounce, linRim, linSkin, linArm, linSpec);
+    // 6b. Ghost aura: aura ethereal lembut di belakang badan (khusus ghost3d)
+    const radGhostGlow = el('radialGradient', {
+      id: U('blobGhostGlow'), cx: '0', cy: '0', r: '140', gradientUnits: 'userSpaceOnUse'
+    });
+    this.glowStop0 = el('stop', { offset: '0%', 'stop-color': tintHex(INK, 0.85), 'stop-opacity': '0.6' });
+    this.glowStop1 = el('stop', { offset: '60%', 'stop-color': tintHex(INK, 0.62), 'stop-opacity': '0.3' });
+    this.glowStop2 = el('stop', { offset: '100%', 'stop-color': tintHex(INK, 0.5), 'stop-opacity': '0' });
+    radGhostGlow.append(this.glowStop0, this.glowStop1, this.glowStop2);
+
+    // 6c. Ghost core: inti bercahaya di dalam badan (khusus ghost3d)
+    const radGhostCore = el('radialGradient', {
+      id: U('blobGhostCore'), cx: '0', cy: '0', r: '60', gradientUnits: 'userSpaceOnUse'
+    });
+    radGhostCore.append(
+      el('stop', { offset: '0%', 'stop-color': '#ffffff', 'stop-opacity': '1' }),
+      el('stop', { offset: '55%', 'stop-color': '#ffffff', 'stop-opacity': '0.55' }),
+      el('stop', { offset: '100%', 'stop-color': '#ffffff', 'stop-opacity': '0' })
+    );
+
+    defs.append(clip, radChoco, radChocoHi, linVert, radCore, radDome, radBounce, linRim, linSkin, linArm, linSpec, radGhostGlow, radGhostCore);
 
     // ── Stubby Cute Arms: Tangan melengkung organik menyatu dari badan (tanpa jari) ──
     const ARM_PATH_L = 'M 0 0 C -22 3 -46 11 -52 23 C -57 33 -46 41 -32 38 C -18 35 -4 27 10 17 Z';
@@ -350,12 +370,19 @@ export class BlobCharacter {
       el('ellipse', { cx: '0', cy: '75', rx: '85', ry: '45', fill: `url(#${U('blobMochiBounce')})` }),
       // 5. Fresnel inner rim glow: wide translucent rim around mochi body
       el('use', { href: `#${U('blobBodyPath')}`, fill: 'none', stroke: `url(#${U('blobRimGrad')})`, 'stroke-width': '16', opacity: '0.62' }),
-      // 6. Primary glossy glass/jelly specular pill
-      el('ellipse', { cx: '-40', cy: '-60', rx: '30', ry: '14', fill: `url(#${U('blobShadeSpec')})`, transform: 'rotate(-26 -40 -60)' }),
-      // 7. Bright pin-point specular glint
-      el('circle', { cx: '-50', cy: '-66', r: '4', fill: '#ffffff', opacity: '0.85' }),
-      // 8. Secondary soft sheen on right shoulder
-      el('ellipse', { cx: '50', cy: '-45', rx: '18', ry: '7', fill: '#ffffff', opacity: '0.20', transform: 'rotate(32 50 -45)' })
+      // 6-8. Specular gloss: grup terpisah (gSpec) — bergerak pelan mengikuti arah mata
+      (() => {
+        this.gSpec = el('g');
+        this.gSpec.append(
+          el('ellipse', { cx: '-52', cy: '-66', rx: '17', ry: '8', fill: `url(#${U('blobShadeSpec')})`, transform: 'rotate(-26 -52 -66)' }),
+          el('circle', { cx: '-44', cy: '-88', r: '4.2', fill: '#ffffff', opacity: '0.9' }),
+          el('circle', { cx: '-31', cy: '-91', r: '1.7', fill: '#ffffff', opacity: '0.55' }),
+          el('ellipse', { cx: '57', cy: '-52', rx: '11', ry: '4.5', fill: '#ffffff', opacity: '0.16', transform: 'rotate(32 57 -52)' })
+        );
+        return this.gSpec;
+      })(),
+      // inti cahaya ghost — di dalam clip badan, berdenyut pelan di loop
+      (this.ghostCore = el('ellipse', { cx: '0', cy: '38', rx: '50', ry: '36', fill: `url(#${U('blobGhostCore')})`, opacity: '0' }))
     );
 
     /* ── Mochi 3D : telinga terkulai + ekor di BELAKANG badan, kaki di DEPAN ──
@@ -382,6 +409,13 @@ export class BlobCharacter {
 
     /* ── Mochi 3D decor: blush + taburan gula (khas mochi foto referensi) ──
        Disembunyikan kecuali shapeId === 'mochi3d'. */
+    // Aura hantu: glow radial lembut di belakang badan, berdenyut pelan
+    this.ghostGlow = el('ellipse', {
+      cx: '0', cy: '8', rx: '132', ry: '138',
+      fill: `url(#${U('blobGhostGlow')})`, 'pointer-events': 'none', style: 'display:none'
+    });
+    this.gBack.append(this.ghostGlow);
+
     this.gMochi3d = el('g', { 'clip-path': `url(#${U('blobBodyClip')})`, 'pointer-events': 'none', style: 'display:none' });
     // Taburan gula halus — titik-titik kecil tersebar di seluruh badan
     const sugarSeed = [
@@ -415,7 +449,9 @@ export class BlobCharacter {
 
     // All blob content wrapped in gBody so gaze tilt can move the whole body
     this.gBody = el('g');
-    this.gBody.append(this.gBack, this.gArms, this.gMochiParts, this.bodyEl, this.gCore, this.gShade, this.gMochi3d, this.gEyes, this.gFront);
+    // ghost: badan dirender sebagai glow berwarna badan (dari gradient tint), bukan fill solid
+    this.ghostBody = el('path', { fill: `url(#${U('blobGhostGlow')})`, stroke: INK, 'stroke-width': '4', 'stroke-opacity': '0.5', 'pointer-events': 'none', style: 'display:none' });
+    this.gBody.append(this.gBack, this.gArms, this.gMochiParts, this.bodyEl, this.ghostBody, this.gCore, this.gShade, this.gMochi3d, this.gEyes, this.gFront);
     svg.append(defs, this.gBody);
     this.gazeX = 0; this.gazeY = 0;
     this.gazeTargetX = 0; this.gazeTargetY = 0;
@@ -498,6 +534,11 @@ export class BlobCharacter {
     this.armStop0.setAttribute('stop-color', tintHex(fill, 0.65));
     this.armStop1.setAttribute('stop-color', tintHex(fill, 0.25));
     this.armStop2.setAttribute('stop-color', shadeHex(fill, 0.82));
+    // Ghost aura: pale body-tinted glow
+    this.glowStop0.setAttribute('stop-color', tintHex(fill, 0.85));
+    this.glowStop1.setAttribute('stop-color', tintHex(fill, 0.62));
+    this.glowStop2.setAttribute('stop-color', tintHex(fill, 0.5));
+    if (this.ghostBody) this.ghostBody.setAttribute('stroke', fill);
   }
 
   _loop() {
@@ -519,10 +560,12 @@ export class BlobCharacter {
     if (!this.lookActive) { this.gazeTargetX = 0; this.gazeTargetY = 0; }
     this.gazeX += (this.gazeTargetX - this.gazeX) * 0.08;
     this.gazeY += (this.gazeTargetY - this.gazeY) * 0.08;
-    if (Math.abs(this.gazeX) > 0.01 || Math.abs(this.gazeY) > 0.01) {
+    // Hantu melayang: bob naik-turun pelan di sepanjang animasinya
+    const bobY = this.shapeId === 'ghost3d' ? Math.sin(now * 1.35) * 5 : 0;
+    if (Math.abs(this.gazeX) > 0.01 || Math.abs(this.gazeY) > 0.01 || Math.abs(bobY) > 0.01) {
       const gx = this.gazeX, gy = this.gazeY;
       this.gBody.setAttribute('transform',
-        `translate(${(gx * 9).toFixed(1)} ${(gy * 5).toFixed(1)}) ` +
+        `translate(${(gx * 9).toFixed(1)} ${(gy * 5 + bobY).toFixed(1)}) ` +
         `rotate(${(gx * 3).toFixed(1)}) skewX(${(gx * -4).toFixed(1)}) ` +
         `scale(${(1 - Math.abs(gx) * 0.045).toFixed(3)} ${(1 + Math.abs(gx) * 0.02).toFixed(3)})`);
       if (this.gCore) {
@@ -534,6 +577,22 @@ export class BlobCharacter {
       this.gBody.removeAttribute('transform');
       if (this.gCore && this.gCore.hasAttribute('transform')) this.gCore.removeAttribute('transform');
     }
+    // spec gloss: melayang pelan sendiri + bergeser mengikuti arah mata (tidak fixed ke badan)
+    if (this.gSpec) this.gSpec.setAttribute('transform',
+      `translate(${(this.gazeX * 9 + Math.sin(now * 0.7) * 2.6).toFixed(1)} ${(this.gazeY * 5 + Math.cos(now * 0.53) * 1.7).toFixed(1)})`);
+    // ghost: kilau spec disembunyikan — sebagai gantinya inti bercahaya di dalam badan
+    const isGhostShape = this.shapeId === 'ghost3d';
+    if (this.gSpec) this.gSpec.style.display = isGhostShape ? 'none' : '';
+    // ghost: semua lapisan shading + inti cokelat disembunyikan — badan hanya glow berwarna badan
+    if (this.gShade) this.gShade.style.display = isGhostShape ? 'none' : '';
+    if (this.gCore) this.gCore.style.display = isGhostShape ? 'none' : '';
+    if (this.ghostBody) {
+      this.ghostBody.style.display = isGhostShape ? '' : 'none';
+      // badan glow berdenyut pelan — ritme sama seperti bob hantu
+      if (isGhostShape) this.ghostBody.setAttribute('opacity', (0.8 + Math.sin(now * 1.35) * 0.2).toFixed(2));
+    }
+    // inti disembunyikan — badan ghost sudah seluruhnya glow
+    if (this.ghostCore) this.ghostCore.style.display = 'none';
 
     const curFill = this.bodyEl.getAttribute('fill') || INK;
     this._updateSkinColors(curFill);
@@ -544,6 +603,13 @@ export class BlobCharacter {
     const isGhost = this.shapeId === 'ghost3d';
     const armsHidden = isMochi3d || isGhost;
     if (this.gArms) this.gArms.style.display = armsHidden ? 'none' : '';
+    // Aura hantu: tampil hanya untuk ghost3d, berdenyut pelan
+    if (this.ghostGlow) {
+      this.ghostGlow.style.display = isGhost ? '' : 'none';
+      if (isGhost) {
+        this.ghostGlow.setAttribute('opacity', (0.75 + Math.sin(now * 1.6) * 0.2).toFixed(2));
+      }
+    }
     if (this.gMochi3d) this.gMochi3d.style.display = isMochi3d ? '' : 'none';
 
     if (this._lastArmFill !== curFill) {
@@ -573,8 +639,8 @@ export class BlobCharacter {
       const isSleepy = this.mood === 'sleepy' || this.currentExpr === 'somnolent';
 
       const isTri = this.shapeId === 'triangle';
-      const baseY = isTri ? 22 : 6;
-      const baseX = isTri ? 62 : 68;
+      const baseY = isTri ? 20 : 6;
+      const baseX = isTri ? 68 : 68;
 
       const breath = Math.sin(now * 2.8) * 1.5;
 
@@ -582,7 +648,8 @@ export class BlobCharacter {
       let offY = breath;
       let offX = 0;
 
-      if (isCheering) {
+      if (isTri) { rotL = -32; rotR = 32; }   // miring mengikuti lereng segitiga
+      else if (isCheering) {
         rotL = -42 + Math.sin(now * 8) * 6;
         rotR = 42 - Math.sin(now * 8) * 6;
         offY = -12 + Math.abs(Math.sin(now * 8)) * 3;
@@ -602,15 +669,16 @@ export class BlobCharacter {
       const cosR = Math.cos(fs.rot), sinR = Math.sin(fs.rot);
       const rotDeg = fs.rot * 180 / Math.PI;
       const ay = baseY + offY;
-      const lx = fs.cx + ((-baseX + offX) * cosR - ay * sinR) * k;
-      const ly = fs.cy + ((-baseX + offX) * sinR + ay * cosR) * k;
-      const rx = fs.cx + ((baseX - offX) * cosR - ay * sinR) * k;
-      const ry = fs.cy + ((baseX - offX) * sinR + ay * cosR) * k;
+      let lx = fs.cx + ((-baseX + offX) * cosR - ay * sinR) * k;
+      let ly = fs.cy + ((-baseX + offX) * sinR + ay * cosR) * k;
+      let rx = fs.cx + ((baseX - offX) * cosR - ay * sinR) * k;
+      let ry = fs.cy + ((baseX - offX) * sinR + ay * cosR) * k;
+      if (isTri) { lx = fs.cx - (82 * fs.s + 10); ly = fs.cy - 8 * fs.s + breath * .5; rx = fs.cx + 82 * fs.s + 10; ry = fs.cy - 8 * fs.s + breath * .5; }  // segitiga: tepi lereng — ikut skala/posisi siluet supaya tidak detas saat squash
 
       this.armL.setAttribute('transform', `translate(${lx.toFixed(1)}, ${ly.toFixed(1)}) rotate(${(rotL + rotDeg).toFixed(1)}) scale(${k.toFixed(2)})`);
       this.armR.setAttribute('transform', `translate(${rx.toFixed(1)}, ${ry.toFixed(1)}) rotate(${(rotR + rotDeg).toFixed(1)}) scale(${k.toFixed(2)})`);
       if (!this._burstActive) {
-        this.gArms.style.opacity = Math.max(0, Math.min(1, (fs.s - 0.38) / 0.22)).toFixed(2);
+        this.gArms.style.opacity = (isTri ? 1 : Math.max(0, Math.min(1, (fs.s - 0.38) / 0.22))).toFixed(2);
       }
     }
 
@@ -643,8 +711,13 @@ export class BlobCharacter {
 
     this.bodyEl.setAttribute('d', frame.bodyPath);
     this.bodyEl.setAttribute('opacity', frame.bodyAlpha.toFixed(2));
+    if (this.ghostBody) this.ghostBody.setAttribute('d', frame.bodyPath);
     if (frame.silScale != null) {
       this._fsil = { s: frame.silScale, cx: frame.silCx, cy: frame.silCy, rot: frame.silRot };
+      // Mata & mulut ikut offset siluet hidup (napas/bob pelan) — tanpa ini mata
+      // tampak "lepas" saat badan bergerak pelan seperti saat tidur.
+      this.gEyes.setAttribute('transform',
+        `translate(${frame.silCx.toFixed(1)} ${frame.silCy.toFixed(1)}) rotate(${(frame.silRot * 180 / Math.PI).toFixed(1)}) scale(${Math.max(0.2, frame.silScale).toFixed(3)})`);
     }
 
     /* ── Skip face rendering during burst, orbit, or dizzy ── */
@@ -854,7 +927,12 @@ export class BlobCharacter {
 
   poke() {
     const now = nowSec();
-    this.engine.setState('wink', now);
+    // lagi tidur → linglung dulu (confus), bukan wink yang tak kelihatan di mata merem
+    if (this.mood === 'sleepy') {
+      this.setState('confuse', 1400);
+    } else {
+      this.engine.setState('wink', now);
+    }
     this.onPokeSound();
     this.onQuip();
     setTimeout(() => {
@@ -863,15 +941,17 @@ export class BlobCharacter {
   }
 
   getShape() {
-    return this.shapeId;
+    return this._painted ? 'lukis' : this.shapeId;
   }
 
   setShape(id) {
+    if (id === 'lukis') { this._painted = true; return; }   // flipbook painted Mochi; engine shape dibiarkan
     const rec = SHAPE_BY_ID.get(id);
     if (!rec) return;
+    this._painted = false;
     this.shapeId = id;
     // Hantu lebih tembus pandang (sifat hantu); bentuk lain kulit mochi normal
-    this.bodyEl.setAttribute('fill-opacity', id === 'ghost3d' ? '0.58' : '0.87');
+    this.bodyEl.setAttribute('fill-opacity', id === 'ghost3d' ? '0' : '0.87');
     this.engine.setShape(rec.radii, nowSec());
   }
 

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hantu — 12 ide bentuk</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: linear-gradient(135deg, #fde8f0, #efeafe 45%, #e3f1fd); min-height: 100vh; color: #222; }
+  h1 { font-size: 18px; margin: 18px 20px 4px; }
+  p { margin: 0 20px 14px; color: #666; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; padding: 0 20px 30px; }
+  .card { background: rgba(255,255,255,.55); border-radius: 14px; padding: 10px; text-align: center; }
+  .card.now { outline: 2px dashed #b9a; }
+  svg { width: 100%; aspect-ratio: 1; display: block; }
+  b { display: block; margin-top: 4px; }
+  small { color: #777; display: block; line-height: 1.35; }
+</style>
+</head>
+<body>
+<h1>Hantu — 12 ide bentuk siluet</h1>
+<p>Pilih nomornya. Kartu bergaris putus-putus = bentuk sekarang (pembanding). Semua bentuk tetap bisa dipakai engine (siluet radial dari tengah).</p>
+<div class="grid" id="grid"></div>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+
+// hem: dari (x1,y) ke (x0,y) — n gelombang, jenis: wave (lembut), scallop (bulat ke bawah), zig (runcing)
+function hem(x0, x1, y, n, amp, kind) {
+  let d = '', step = (x1 - x0) / n;
+  for (let i = n - 1; i >= 0; i--) {
+    const a = x0 + step * (i + 1), b = x0 + step * i, m = (a + b) / 2;
+    if (kind === 'zig') d += ` L${m},${y + amp} L${b},${y}`;
+    else if (kind === 'scallop') d += ` Q${a},${y + amp * 1.6} ${m},${y + amp} Q${b},${y + amp * 1.6} ${b},${y}`;
+    else d += ` Q${(a + m) / 2},${y + amp * 1.4} ${m},${y + amp * .3} Q${(m + b) / 2},${y - amp * .2} ${b},${y}`;
+  }
+  return d;
+}
+// siluet seprai: kubah atas, sisi lurus/melebar, ourlet bawah
+function sheet({ w = 60, top = -82, sh = -15, y = 68, n = 3, amp = 12, kind = 'wave', flare = 1 }) {
+  const wb = w * flare;
+  return `M${-wb},${y} L${-w},${sh} C${-w},${(top + sh) / 2 - 12} ${-w * .55},${top} 0,${top} C${w * .55},${top} ${w},${(top + sh) / 2 - 12} ${w},${sh} L${wb},${y}` + hem(-wb, wb, y, n, amp, kind) + 'Z';
+}
+
+const IDEAS = [
+  { now: true, name: 'Sekarang', note: 'gabungan lingkaran — leher & pinggang bergelombang, kaki kecil-kecil', circles: [[0, -.42, .42], [0, -.05, .56], [0, .28, .6], [-.44, .58, .17], [-.15, .62, .18], [.15, .62, .18], [.44, .58, .17]] },
+  { name: '1 · Seprai Klasik', note: 'kubah bulat, sisi lurus, 3 gelombang lembut — ikon hantu paling dikenali', d: sheet({}) },
+  { name: '2 · Lonceng', note: 'melebar ke bawah, 5 lekuk bulat — kesan melayang & gemulai', d: sheet({ w: 50, top: -80, sh: -20, y: 66, n: 5, amp: 9, kind: 'scallop', flare: 1.35 }) },
+  { name: '3 · Mochi Hantu', note: 'pendek gemuk seperti mochi, 4 gelombang kecil — paling imut, dekat dengan Mochi', d: sheet({ w: 74, top: -62, sh: 0, y: 52, n: 4, amp: 8 }) },
+  { name: '4 · Arcade', note: 'gaya pac-man: sisi tegak, 4 gigi runcing — retro & tegas', d: sheet({ w: 62, top: -78, sh: -28, y: 62, n: 4, amp: 16, kind: 'zig' }) },
+  { name: '5 · Marshmallow', note: 'tinggi ramping, 2 gelombang besar — elegan', d: sheet({ w: 47, top: -92, sh: -30, y: 74, n: 2, amp: 15 }) },
+  { name: '6 · Berjubah', note: 'bahu sempit, jubah melebar, ujung zigzag halus — misterius', d: sheet({ w: 44, top: -84, sh: -30, y: 70, n: 6, amp: 10, kind: 'zig', flare: 1.5 }) },
+  { name: '7 · Ubur-ubur', note: 'kubah lebar + 3 "tentakel" bulat dalam — lucu & unik', d: sheet({ w: 70, top: -70, sh: 5, y: 34, n: 3, amp: 26, kind: 'scallop' }) },
+  { name: '8 · Hantu Mungil', note: 'bulat kecil, ourlet tipis — paling sederhana & bersih', d: sheet({ w: 58, top: -58, sh: 8, y: 58, n: 3, amp: 6 }) },
+  { name: '9 · Ekor Asap', note: 'kepala bulat, badan mengecil jadi ekor melengkung ke kanan — kesan bergerak', d: 'M-58,-18 C-58,-62 -30,-80 0,-80 C30,-80 58,-62 58,-18 C58,22 40,44 52,76 C22,74 -6,64 -28,46 C-48,30 -58,8 -58,-18Z' },
+  { name: '10 · Api Lilin', note: 'puncak runcing seperti nyala lilin, 3 gelombang — hantu "jiwa"', d: 'M-62,66 L-62,10 C-62,-34 -24,-56 0,-92 C24,-56 62,-34 62,10 L62,66' + hem(-62, 62, 66, 3, 11, 'wave') + 'Z' },
+  { name: '11 · Awan Hantu', note: 'atas berbentuk awan 3 tonjolan, bawah bergelombang — empuk', d: 'M-64,66 L-64,-2 A26,26 0 0 1 -34,-46 A34,34 0 0 1 34,-46 A26,26 0 0 1 64,-2 L64,66' + hem(-64, 64, 66, 4, 10, 'wave') + 'Z' },
+  { name: '12 · Melambai', note: 'klasik tapi tangan kecil terangkat di sisi — ramah, menyapa', d: 'M-56,68 L-56,8 C-70,4 -84,-12 -80,-22 C-74,-28 -62,-16 -56,-14 C-56,-56 -30,-82 0,-82 C30,-82 56,-56 56,-14 C62,-16 74,-28 80,-22 C84,-12 70,4 56,8 L56,68' + hem(-56, 56, 68, 3, 12, 'wave') + 'Z' }
+];
+
+const grid = document.getElementById('grid');
+IDEAS.forEach((it, k) => {
+  const card = document.createElement('div');
+  card.className = 'card' + (it.now ? ' now' : '');
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '-110 -110 220 220');
+  const id = 'g' + k;
+  let body;
+  if (it.circles) body = it.circles.map(([x, y, r]) => `<circle cx="${x * 100}" cy="${y * 100}" r="${r * 100}"/>`).join('');
+  else body = `<path d="${it.d}"/>`;
+  svg.innerHTML = `
+    <defs>
+      <radialGradient id="${id}" cx="35%" cy="25%" r="80%">
+        <stop offset="0" stop-color="#3a3a4c"/><stop offset=".45" stop-color="#17171f"/><stop offset="1" stop-color="#0a0a10"/>
+      </radialGradient>
+    </defs>
+    <ellipse cx="0" cy="92" rx="58" ry="7" fill="rgba(40,38,50,.18)"/>
+    <g fill="url(#${id})">${body}</g>
+    <rect x="-22" y="-34" width="11" height="24" rx="5.5" fill="#f2f0f6"/>
+    <rect x="11" y="-34" width="11" height="24" rx="5.5" fill="#f2f0f6"/>
+    <path d="M-6,-2 Q0,3 6,-2" stroke="#f2f0f6" stroke-width="2.5" fill="none" stroke-linecap="round"/>`;
+  card.appendChild(svg);
+  card.insertAdjacentHTML('beforeend', `<b>${it.name}</b><small>${it.note}</small>`);
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>

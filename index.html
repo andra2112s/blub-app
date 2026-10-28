@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <script>
     (function(){
-      var V='v143';
+      var V='v144';
       try{
         if(!('serviceWorker' in navigator)||!('caches' in window))return;
         if(localStorage.getItem('Mochi.activeSw')===V)return;
@@ -22,6 +22,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Mochi — Teman AI Interaktif</title>
     <meta name="description" content="Mochi adalah avatar blob animasi yang bisa diajak ngobrol, merespons sentuhan, dan menemanimu. Install di HP maupun PC." />
+    <!-- Alamat server Mochi Studio di VPS (lihat deploy/README.md). Kosong = fitur bikin video nonaktif. -->
+    <meta name="mochi-studio" content="http://localhost:8787" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -104,7 +106,8 @@
               <button class="rm-btn" data-feature="meditasi" style="--i:3"><svg viewBox="0 0 24 24" class="rm-icon"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4v-2M9 5L7 3M15 5l2-2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>Med</span></button>
               <button class="rm-btn" data-feature="fun" style="--i:4"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M12 3l2.5 6 6.5.5-5 4.5 1.5 6.5L12 17l-5.5 3.5L8 14 3 9.5l6.5-.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Fun</span></button>
               <button class="rm-btn" data-feature="pet" style="--i:5"><svg viewBox="0 0 24 24" class="rm-icon"><path fill="currentColor" d="M12 12.8c-2.8 0-5.5 2.1-5.5 4.6 0 1.6 1.2 2.9 2.9 2.9 1 0 1.7-.5 2.6-.5s1.6.5 2.6.5c1.7 0 2.9-1.3 2.9-2.9 0-2.5-2.7-4.6-5.5-4.6ZM6.4 8.4c-1.1 0-2 1.1-2 2.6s.9 2.6 2 2.6 2-1.1 2-2.6-.9-2.6-2-2.6Zm11.2 0c-1.1 0-2 1.1-2 2.6s.9 2.6 2 2.6 2-1.1 2-2.6-.9-2.6-2-2.6ZM9.2 3.6c-1.1 0-2 1.2-2 2.8s.9 2.8 2 2.8 2-1.2 2-2.8-.9-2.8-2-2.8Zm5.6 0c-1.1 0-2 1.2-2 2.8s.9 2.8 2 2.8 2-1.2 2-2.8-.9-2.8-2-2.8Z"/></svg><span>Pet</span></button>
-              <button class="rm-btn" data-feature="idletest" data-dev style="--i:6"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
+              <button class="rm-btn" data-feature="studio" style="--i:6"><svg viewBox="0 0 24 24" class="rm-icon"><rect x="3" y="6" width="13" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 10l5-3v10l-5-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg><span>Studio</span></button>
+              <button class="rm-btn" data-feature="idletest" data-dev style="--i:7"><svg viewBox="0 0 24 24" class="rm-icon"><path d="M9 2h6v4l4 7a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4l4-7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 3v3M11 3v3M13 3v3M15 3v3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg><span>Test Idle</span></button>
             </div>
 
             <div id="idleRadial" class="sub-radial hidden">
@@ -274,6 +277,14 @@
             </div>
             <button type="button" class="task-fab" id="taskAddBtn" aria-label="Pengingat baru">＋ Pengingat</button>
           </div>
+        </section>
+
+        <section class="feature-panel studio-panel" id="panelStudio" hidden>
+          <div class="panel-header">
+            <button class="btn-back" data-close="panelStudio">←</button>
+            <span class="panel-title">🎬 Mochi Studio</span>
+          </div>
+          <div class="panel-body" id="studioBody"></div>
         </section>
 
         <section class="feature-panel" id="panelPet" hidden>
@@ -492,6 +503,7 @@
         <div class="dlg-actions">
           <button id="btnProfile" type="button" class="btn ghost">👤 Ubah profil</button>
           <button id="btnShape" type="button" class="btn ghost">🎨 Ganti bentuk</button>
+          <button id="btnGift" type="button" class="btn ghost">🎁 Bagikan Mochi</button>
           <button id="setReset" type="button" class="btn ghost">Hapus memori</button>
           <button value="cancel" class="btn ghost">Tutup</button>
           <button id="setSave" type="button" class="btn primary">Simpan</button>
@@ -508,6 +520,27 @@
         </div>
       </div>
     </dialog>
+
+    <dialog id="giftDlg" class="dlg">
+      <form method="dialog" class="dlg-body">
+        <h2>Bagikan Mochi 🎁</h2>
+        <p class="hint">Temanmu scan QR ini → langsung dapat Mochi di browser, tanpa perlu install dulu.</p>
+        <img id="giftQr" class="gift-qr" alt="QR link undangan Mochi" width="220" height="220" />
+        <input id="giftLink" type="text" readonly onclick="this.select()" />
+        <div class="dlg-actions">
+          <button id="giftCopy" type="button" class="btn ghost">📋 Salin link</button>
+          <button id="giftShare" type="button" class="btn primary">Bagikan…</button>
+          <button value="close" class="btn ghost">Tutup</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="giftBanner" class="gift-banner hidden" role="status">
+      <span class="gift-emoji" aria-hidden="true">🎁</span>
+      <span id="giftBannerText" class="gift-text"></span>
+      <button id="giftBannerInstall" type="button" class="btn primary">Pasang</button>
+      <button id="giftBannerClose" type="button" class="gift-close" aria-label="Tutup">✕</button>
+    </div>
 
     <div id="toast" class="toast hidden"></div>
     <div id="fxLayer" class="fx-layer"></div>

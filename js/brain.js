@@ -1,4 +1,5 @@
 ﻿import { createTaskManager } from './tasks.js';
+import { powerReply, powerPrompt, powerHelpLines } from './skills/index.js';
 
 const MEM_KEY = 'Mochi.memory';
 const HIST_KEY = 'Mochi.history';
@@ -9,7 +10,8 @@ const TOOLS = [
   { name: 'set_reminder', description: 'Pasang pengingat di waktu tertentu. "at" = waktu lokal pengguna, format YYYY-MM-DDTHH:MM. Gunakan repeat_monthly untuk tagihan/cicilan/jadwal rutin bulanan.', parameters: { type: 'object', properties: { at: { type: 'string' }, text: { type: 'string' }, repeat_monthly: { type: 'boolean', description: 'true jika pengingat berulang tiap bulan pada tanggal & jam yang sama (tagihan, cicilan, gajian)' }, repeat_count: { type: 'number', description: 'jumlah total pengulangan (mis. cicilan 12 kali); hanya dipakai bila repeat_monthly true; kosong = selamanya' } }, required: ['at', 'text'] } },
   { name: 'add_todo', description: 'Tambah satu tugas ke daftar tugas.', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } },
   { name: 'list_todos', description: 'Lihat daftar tugas pengguna.', parameters: { type: 'object', properties: {} } },
-  { name: 'remember', description: 'Simpan satu fakta tahan lama tentang pengguna (preferensi, orang penting, jadwal rutin, tujuan). Jangan simpan kata sandi, nomor kartu, atau data sensitif.', parameters: { type: 'object', properties: { fact: { type: 'string' } }, required: ['fact'] } }
+  { name: 'remember', description: 'Simpan satu fakta tahan lama tentang pengguna (preferensi, orang penting, jadwal rutin, tujuan). Jangan simpan kata sandi, nomor kartu, atau data sensitif.', parameters: { type: 'object', properties: { fact: { type: 'string' } }, required: ['fact'] } },
+  { name: 'open_studio', description: 'Buka Mochi Studio untuk membuat video AI pendek. Pakai saat pengguna minta dibuatkan video/animasi/film. "idea" = rangkuman ide video yang jelas dalam Bahasa Indonesia.', parameters: { type: 'object', properties: { idea: { type: 'string' } }, required: ['idea'] } }
 ];
 const OAI_TOOLS = TOOLS.map((t) => ({ type: 'function', function: t }));
 const MUTATING_TOOLS = new Set(['set_timer', 'set_reminder', 'add_todo', 'remember']);
@@ -52,7 +54,7 @@ const COLOR_WORDS = {
   putih: 'creme', krem: 'creme'
 };
 
-const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "bersinar!" ✨\n• "sinar merah / biru / ungu…" ✨🎨\n• "jadi biru / merah / ungu…" 🎨`;
+const POWER_HELP = `Daftar kekuatan super ${PERSONA}:\n• "meledak!" 💥\n• "jadi komet!" ☄️\n• "mode planet!" 🪐\n• "pusarin!" 🌀\n• "wih!" ❗\n• "lonceng!" 🔔\n• "bersinar!" ✨\n• "sinar merah / biru / ungu…" ✨🎨\n• "jadi biru / merah / ungu…" 🎨\n\nPOWER skill:\n${powerHelpLines()}`;
 
 function load(key, fallback) {
   try {
@@ -162,6 +164,11 @@ export function createBrain() {
       rememberFact(args.fact);
       return 'tersimpan';
     }
+    if (name === 'open_studio') {
+      if (typeof window === 'undefined') return 'gagal: studio tidak tersedia';
+      window.dispatchEvent(new CustomEvent('mochi:studio', { detail: { idea: String(args.idea || '').slice(0, 1000) } }));
+      return 'Studio dibuka dengan ide terisi. Beri tahu pengguna untuk memilih paket lalu tap Buat Video.';
+    }
     return 'tool tidak dikenal';
   }
 
@@ -186,6 +193,8 @@ export function createBrain() {
     if (prof.length) parts.push('Profil pengguna:\n' + prof.join('\n'));
     const facts = relevantFacts(q);
     if (facts.length) parts.push('Yang kamu ingat tentang pengguna:\n' + facts.map((f) => '- ' + f).join('\n'));
+    const power = powerPrompt(String(q || '').toLowerCase());
+    if (power) parts.push(power);
     parts.push(
       [
         'Aturan:',
@@ -193,6 +202,7 @@ export function createBrain() {
         '- Kalau permintaan ambigu atau kurang data (waktu, nama, jumlah), tanya satu pertanyaan singkat dulu.',
         '- Kalau tidak tahu atau tidak yakin, bilang terus terang. Jangan mengarang.',
         '- Pakai tool saat pengguna minta timer, pengingat, atau tugas. Pakai remember saat pengguna menyebut fakta tahan lama tentang dirinya. Jangan menyimpan hal sepele.',
+        '- Pakai open_studio saat pengguna minta dibuatkan video/animasi/film.',
         `- Awali jawaban akhir dengan [mood:idle|happy|sad|surpris|think|excite|sleepy|proud|shy|bored|confuse|scare].`
       ].join('\n')
     );
@@ -354,6 +364,10 @@ export function createBrain() {
     const t = text.toLowerCase().trim();
     const hasName = !!mem.name;
     const nameRef = hasName ? mem.name : 'kamu';
+
+    // POWER (skill) dicek paling awal — "pasang toonflow" jangan ketangkap intent install PWA
+    const pw = powerReply(t);
+    if (pw) return pw;
 
     const ctxMatch = contextResponse(text);
     if (ctxMatch) return ctxMatch;
@@ -642,7 +656,7 @@ export function createBrain() {
     }
 
     if (/(bisa apa|fitur|help|tolong bantuan|bantuan|menu)/.test(t)) {
-      return { text: `Banyak banget! ${PERSONA} bisa:\n💬 Ngobrol & inget nama/hobi kamu\n🧮 Jawab matematika (coba: 12 x 7 + 5)\n😂 Kasih joke & motivasi\n📅 Sebut jam & tanggal\n🎨 Ganti warna badan\n⚡ Super power (burst, komet, orbit...)\n📥 Fakta unik & quote\n Dan bisa disambungkan ke AI besar lewat pengaturan ⚙️`, state: 'happy' };
+      return { text: `Banyak banget! ${PERSONA} bisa:\n💬 Ngobrol & inget nama/hobi kamu\n🧮 Jawab matematika (coba: 12 x 7 + 5)\n😂 Kasih joke & motivasi\n📅 Sebut jam & tanggal\n🎨 Ganti warna badan\n⚡ Super power (burst, komet, orbit...)\n🎬 POWER skill: pandu setup Toonflow (ketik "toonflow")\n📥 Fakta unik & quote\n Dan bisa disambungkan ke AI besar lewat pengaturan ⚙️`, state: 'happy' };
     }
 
     // Inten install aplikasi — JANGAN menelan permintaan timer/pengingat

@@ -7,6 +7,13 @@
 [functions]
   node_bundler = "esbuild"
 
+# /manifest.json → manifest dinamis (deferred deep link untuk QR gift)
+[[redirects]]
+  from = "/manifest.json"
+  to = "/.netlify/functions/manifest"
+  status = 200
+  force = true
+
 # /api/chat (dan path /api/* lain) → Netlify Function "chat"
 [[redirects]]
   from = "/api/*"

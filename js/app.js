@@ -3,6 +3,10 @@ import { COLOR_BY_ID, mixHex } from './bloub-engine.js';
 import { createBrain, PERSONA, setPersona } from './brain.js';
 import { createMusicDancer } from './music.js';
 import { createPet } from './pet.js';
+import { initPainted } from './painted.js';
+import { createStudio } from './studio.js';
+
+let studio = null;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -49,6 +53,16 @@ const els = {
   settingsDlg: $('#settingsDlg'),
   installDlg: $('#installDlg'),
   installHow: $('#installHow'),
+  giftBanner: $('#giftBanner'),
+  giftBannerText: $('#giftBannerText'),
+  giftBannerInstall: $('#giftBannerInstall'),
+  giftBannerClose: $('#giftBannerClose'),
+  btnGift: $('#btnGift'),
+  giftDlg: $('#giftDlg'),
+  giftQr: $('#giftQr'),
+  giftLink: $('#giftLink'),
+  giftCopy: $('#giftCopy'),
+  giftShare: $('#giftShare'),
   toast: $('#toast'),
   setProvider: $('#setProvider'),
   setUrl: $('#setUrl'),
@@ -147,6 +161,7 @@ if (els.ground && els.svg) {
     let tx = 0, ty = 0, sx = 1, sy = 1;
     if (matrix && matrix !== 'none') {
       const m = matrix.match(/matrix\(([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)\)/);
+      const m3 = m ? null : matrix.match(/matrix3d\(([^)]+)\)/);
       if (m) {
         const a = parseFloat(m[1]);
         const b = parseFloat(m[2]);
@@ -155,6 +170,12 @@ if (els.ground && els.svg) {
         ty = parseFloat(m[6]);
         sx = Math.sqrt(a * a + b * b);
         sy = Math.sqrt(d * d + parseFloat(m[3]) * parseFloat(m[3]));
+      } else if (m3) {
+        // rotateY/rotateX bikin computed style matrix3d — ambil tx,ty & skala dari kolomnya
+        const v = m3[1].split(',').map(parseFloat);
+        tx = v[12]; ty = v[13];
+        sx = Math.hypot(v[0], v[1], v[2]) || 1;
+        sy = Math.hypot(v[4], v[5], v[6]) || 1;
       }
     }
     // Height above ground (ty < 0 = blob went up)
@@ -250,6 +271,8 @@ function playBoom() {
 
 function playKnock() {
   if (muted) return;
+  // jangan buat AudioContext sebelum ada interaksi user (autoplay policy)
+  if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const now = ctx.currentTime;
@@ -595,6 +618,7 @@ async function send(rawText) {
   else addMsg('bot', res.text);
   speak(res.text);
   if (res.changed) renderTasksPanel();
+  if (res.studio) setTimeout(() => studio?.open(res.studio.idea), 600);
   if (res.colorId && res.effect !== 'glow' && res.effect !== 'glowSet') blob.setColorById(res.colorId);
 
   // Detect chat sentiment for emotion engine
@@ -761,6 +785,16 @@ const emotion = (function() {
     // Decay back to neutral after 30s
     sentimentDecayTimer = setTimeout(() => { lastChatSentiment = 'neutral'; }, 30000);
   }
+
+  // Attention-seeker: kalau >25 dtk tanpa interaksi, Mochi mendekat & mengetuk
+  // layar berulang tiap ~15 dtk. Otomatis berhenti begitu user menyentuh/interaksi.
+  setInterval(() => {
+    if (Date.now() - lastInteraction <= 25000) return;
+    // jangan ketuk saat Mochi tidur/sedih — hanya saat fase terbangun
+    if (currentPhase === 'sleepy' || currentPhase === 'sad' || currentPhase === 'cry') return;
+    if (els.svg.classList.contains('idle-knock')) return;
+    playKnockSequence();
+  }, 15000);
 
   function scheduleEmotion() {
     if (emotionTimer) clearTimeout(emotionTimer);
@@ -1007,7 +1041,7 @@ function renderMemoryList() {
 }
 
 function initSettings() {
-  const defaults = { provider: '', url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
+  const defaults = { provider: 'server', url: '', key: '', model: '', sys: '', ttsKey: '', ttsVoice: 'Chloe', ttsEnabled: false };
   const open = () => {
     const cfg = { ...defaults, ...JSON.parse(store.get('Mochi.settings', '{}')) };
     els.setProvider.value = cfg.provider || '';
@@ -1126,20 +1160,37 @@ function initSettings() {
   });
 }
 
-function initInstall() {
-  const isStandalone =
-    matchMedia('(display-mode: standalone)').matches ||
-    navigator.standalone === true;
+const isStandalone = () =>
+  matchMedia('(display-mode: standalone)').matches ||
+  navigator.standalone === true;
 
+async function promptInstall() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    els.btnInstall.classList.add('hidden');
+  } else {
+    els.installDlg.showModal();
+  }
+}
+
+function initInstall() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
-    if (!isStandalone) els.btnInstall.classList.remove('hidden');
+    if (!isStandalone()) els.btnInstall.classList.remove('hidden');
   });
 
   window.addEventListener('appinstalled', () => {
     els.btnInstall.classList.add('hidden');
+    els.giftBanner.classList.add('hidden');
     deferredPrompt = null;
+    const gift = loadGift();
+    if (gift && !gift.installed) {
+      gift.installed = true;
+      store.set(GIFT_KEY, JSON.stringify(gift));
+    }
     toast(`${PERSONA} terpasang! 🎉`);
   });
 
@@ -1150,15 +1201,112 @@ function initInstall() {
     <div class="install-step"><b>Windows / Mac:</b><span>klik ikon install ⊕ di address bar browser.</span></div>`;
   els.installHow.innerHTML = how;
 
-  els.btnInstall.addEventListener('click', async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      els.btnInstall.classList.add('hidden');
-    } else {
-      els.installDlg.showModal();
+  els.btnInstall.addEventListener('click', promptInstall);
+}
+
+/* ── Web-to-app funnel: QR gift ──
+   Scan QR → /?gift=1&from=Nama → tamu langsung dapat Mochi di browser
+   (tanpa install/login), plus banner ajak install. Token dibawa sampai
+   setelah install lewat manifest dinamis /manifest.json — start_url-nya
+   ikut menyimpan ?gift&from (deferred deep linking), jadi tetap nyambung
+   walau storage app terpasang terpisah dari browser (mis. iOS). */
+const GIFT_KEY = 'Mochi.gift';
+
+function loadGift() {
+  try { return JSON.parse(store.get(GIFT_KEY, 'null')); } catch { return null; }
+}
+
+function initGift() {
+  const q = new URLSearchParams(location.search);
+  if (q.has('gift') || q.has('mochi')) {
+    const gift = loadGift() || {};
+    const from = (q.get('from') || '').trim().slice(0, 24);
+    if (from) gift.from = from;
+    gift.at = gift.at || Date.now();
+    store.set(GIFT_KEY, JSON.stringify(gift));
+    history.replaceState(null, '', location.pathname + location.hash);
+  }
+
+  const gift = loadGift();
+  if (!gift) return;
+
+  // Guest scan flow — Mochi langsung jadi milik tamu, tanpa onboarding paksa.
+  if (!isOnboarded()) store.set('Mochi.onboarded2', '1');
+
+  if (isStandalone()) {
+    // Token selamat sampai app terpasang — rayakan sekali.
+    if (!gift.installed) {
+      gift.installed = true;
+      store.set(GIFT_KEY, JSON.stringify(gift));
+      setTimeout(() => {
+        toast(gift.from ? `Mochi dari ${gift.from} resmi jadi milikmu! 🎉` : 'Mochi resmi jadi milikmu! 🎉');
+        blob.setState('excite', { holdMs: 1800 });
+      }, 900);
     }
+    return;
+  }
+
+  // Tukar manifest ke versi dinamis supaya start_url PWA bawa token gift.
+  const link = document.querySelector('link[rel="manifest"]');
+  if (link) {
+    const p = new URLSearchParams({ gift: '1', base: location.pathname.replace(/[^/]*$/, '') });
+    if (gift.from) p.set('from', gift.from);
+    if (PERSONA !== 'Mochi') p.set('persona', PERSONA);
+    link.href = `/manifest.json?${p}`;
+  }
+
+  // Smart app banner — ajak install (dismiss berlaku per sesi).
+  if (sessionStorage.getItem('Mochi.giftDismissed') !== '1') {
+    els.giftBannerText.textContent = gift.from
+      ? `${gift.from} ngasih kamu Mochi! Pasang aplikasinya biar dia nggak hilang.`
+      : 'Kamu dapat Mochi! Pasang aplikasinya biar dia nggak hilang.';
+    els.giftBanner.classList.remove('hidden');
+  }
+  els.giftBannerInstall.addEventListener('click', promptInstall);
+  els.giftBannerClose.addEventListener('click', () => {
+    els.giftBanner.classList.add('hidden');
+    sessionStorage.setItem('Mochi.giftDismissed', '1');
+  });
+}
+
+function initGiftShare() {
+  const inviteUrl = () => {
+    const u = new URL(location.pathname.replace(/[^/]*$/, ''), location.origin);
+    u.searchParams.set('gift', '1');
+    const name = brain.memory().name;
+    if (name) u.searchParams.set('from', name);
+    return u.href;
+  };
+
+  els.btnGift.addEventListener('click', () => {
+    els.settingsDlg.close();
+    const url = inviteUrl();
+    els.giftLink.value = url;
+    els.giftQr.style.display = '';
+    els.giftQr.onerror = () => { els.giftQr.style.display = 'none'; };
+    els.giftQr.src = `https://api.qrserver.com/v1/create-qr-code/?size=440x440&margin=8&data=${encodeURIComponent(url)}`;
+    els.giftDlg.showModal();
+  });
+
+  els.giftCopy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(els.giftLink.value);
+    } catch {
+      els.giftLink.select();
+      document.execCommand('copy');
+    }
+    toast('Link disalin 📋');
+  });
+
+  els.giftShare.addEventListener('click', async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: PERSONA, text: `Adopsi ${PERSONA} di sini — langsung jalan di browser!`, url: els.giftLink.value });
+        return;
+      } catch {}
+      return;
+    }
+    els.giftCopy.click();
   });
 }
 
@@ -1394,6 +1542,7 @@ const blob = new BlobCharacter(els.svg, {
     if (Math.random() < 0.7) showBubble(brain.randomQuip(), 1800);
   }
 });
+initPainted(blob, els.stage);
 // Restore warna badan hasil goncang (tanpa efek flash) — hex baru / id lama
 const savedBodyV = store.get('Mochi.bodyColor', '');
 const savedBodyHex = /^#[0-9a-f]{6}$/i.test(savedBodyV) ? savedBodyV
@@ -1574,12 +1723,14 @@ function closePanel(id) {
   if (panel) panel.hidden = true;
   showLauncher();
   hideBackdrop();
+  if (id === 'panelStudio') studio?.onPanelClosed();
 }
 
 function closeAllPanels() {
   document.querySelectorAll('.feature-panel').forEach((p) => (p.hidden = true));
   showLauncher();
   hideBackdrop();
+  studio?.onPanelClosed();
 }
 
 /* ── Tasks panel (Tugas & Pengingat) ── */
@@ -2456,6 +2607,7 @@ els.radialMenu.addEventListener('click', (e) => {
   else if (f === 'pomodoro') { closeRadialMenu(); startBlobTimer(); }
   else if (f === 'fun') openPanel('panelFun');
   else if (f === 'pet') { openPanel('panelPet'); pet.render(); }
+  else if (f === 'studio') studio?.open();
   else if (f === 'idletest') { closeRadialMenu(); els.idleRadial.classList.remove('hidden'); }
   else if (f === 'meditasi') { closeRadialMenu(); startMeditasi(); }
 });
@@ -2792,6 +2944,23 @@ els.meditasiClose.addEventListener('click', () => {
 document.querySelectorAll('.btn-back').forEach((btn) => {
   btn.addEventListener('click', () => closePanel(btn.dataset.close));
 });
+
+/* ── Mochi Studio: bikin video AI (server di VPS) ── */
+studio = createStudio({
+  body: document.getElementById('studioBody'),
+  open: () => openPanel('panelStudio'),
+  toast,
+  onJobDone(job) {
+    const ok = job.status === 'done';
+    const msg = ok
+      ? `🎬 Videomu **${job.title || 'baru'}** sudah jadi! Buka Studio buat nonton & unduh.`
+      : `😢 Video "${job.idea.slice(0, 40)}" ${job.status === 'refused' ? 'ditolak' : 'gagal dibuat'}. Kreditnya sudah kukembalikan.`;
+    addMsg('bot', msg);
+    showBubble(ok ? '🎬 Videomu jadi!' : 'Video gagal 😢', 3000);
+    applyState(ok ? 'excite' : 'sad');
+  }
+});
+window.addEventListener('mochi:studio', (e) => studio.open(e.detail?.idea || ''));
 
 els.chatClose.addEventListener('click', () => {
   els.chatSidebar.classList.add('hidden');
@@ -3301,6 +3470,33 @@ function hideIdleBadge() {
   if (idleBadge) idleBadge.classList.add('hidden');
 }
 
+/* Mochi mendekat & mengetuk layar 3x — dipakai tombol idle & attention-seeker. */
+function playKnockSequence() {
+  const svg = els.svg;
+  svg.classList.remove('idle-anim');
+  showBubble('Tok tok! 🚪', 3000);
+  showIdleBadge('knock');
+  svg.classList.add('idle-anim', 'idle-knock');
+  idleAnims.stop();
+  const stage = els.stage;
+  [1680, 2200, 2720].forEach((t) => {
+    setTimeout(() => {
+      playKnock();
+      stage.classList.add('knocking');
+      const flash = document.createElement('div');
+      flash.className = 'knock-flash';
+      document.body.appendChild(flash);
+      setTimeout(() => flash.remove(), 250);
+      setTimeout(() => stage.classList.remove('knocking'), 200);
+    }, t);
+  });
+  svg.addEventListener('animationend', () => {
+    svg.classList.remove('idle-anim', 'idle-knock');
+    hideIdleBadge();
+    idleAnims.resume();
+  }, { once: true });
+}
+
 document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
   btn.addEventListener('click', () => {
     idleAnims.stop();
@@ -3317,28 +3513,7 @@ document.querySelectorAll('#idleRadial .srm-btn[data-idle]').forEach((btn) => {
     }
 
     if (idleType === 'knock') {
-      svg.classList.remove('idle-anim');
-      showBubble('Tok tok! 🚪', 3000);
-      showIdleBadge('knock');
-      svg.classList.add('idle-anim', 'idle-knock');
-      const stage = els.stage;
-      const knockTimes = [1680, 2200, 2720];
-      knockTimes.forEach((t) => {
-        setTimeout(() => {
-          playKnock();
-          stage.classList.add('knocking');
-          const flash = document.createElement('div');
-          flash.className = 'knock-flash';
-          document.body.appendChild(flash);
-          setTimeout(() => flash.remove(), 250);
-          setTimeout(() => stage.classList.remove('knocking'), 200);
-        }, t);
-      });
-      svg.addEventListener('animationend', () => {
-        svg.classList.remove('idle-anim', 'idle-knock');
-        hideIdleBadge();
-        idleAnims.resume();
-      }, { once: true });
+      playKnockSequence();
       return;
     }
 
@@ -3382,7 +3557,7 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-const APP_VERSION = 'v143';
+const APP_VERSION = 'v150';
 
 function applyPersonaName() {
   document.title = `${PERSONA} — Teman AI Interaktif`;
@@ -3398,7 +3573,8 @@ function injectManifest() {
   // Manifest statis (manifest.webmanifest) lebih andal untuk installability —
   // Chrome kadang tidak memicu prompt install untuk manifest blob:.
   // Tukar ke blob HANYA kalau persona di-rename (nama app ikut berubah).
-  if (PERSONA === 'Mochi') return;
+  // Kalau ada gift pending, /manifest.json dinamis sudah menangani dua-duanya.
+  if (PERSONA === 'Mochi' || loadGift()) return;
   const abs = (p) => new URL(p, location.href).href;
   const manifest = {
     name: `${PERSONA} — Teman AI Interaktif`,
@@ -3426,7 +3602,9 @@ initMic();
 initTheme();
 initSettings();
 initInstall();
+initGift();
 initOnboarding();
+initGiftShare();
 initDevModeToggle();
 restoreChat();
 greet();

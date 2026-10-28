@@ -1,3 +1,5 @@
 node_modules/
 _test_*.mjs
 .env
+studio/data/
+toonflowBackup/

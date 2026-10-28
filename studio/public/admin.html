@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex" />
+<title>Admin Mochi Studio</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root { --bg:#f6f4ef; --card:#fff; --text:#1c1c22; --muted:#6b6b78; --accent:#7c5cff; --border:#e5e2da; --ok:#1f9d55; --bad:#d64545; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141418; --card:#1e1e24; --text:#f0eff4; --muted:#9a9aa8; --border:#2c2c34; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid var(--border); }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  main { max-width:960px; margin:0 auto; padding:16px; }
+  nav { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  nav button, .btn { border:1px solid var(--border); background:var(--card); color:var(--text); padding:8px 14px; border-radius:10px; cursor:pointer; font:inherit; }
+  nav button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.ok { background:var(--ok); color:#fff; border-color:var(--ok); }
+  .btn.bad { background:transparent; color:var(--bad); border-color:var(--bad); }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .stats div { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:12px; }
+  .stats b { display:block; font-size:22px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); vertical-align:top; font-size:14px; }
+  th { color:var(--muted); font-weight:600; }
+  .amount { font-weight:800; font-size:16px; font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); font-size:13px; }
+  textarea { width:100%; min-height:420px; font:13px/1.4 ui-monospace, monospace; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px; }
+  input, select { font:inherit; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:var(--bg); color:var(--text); }
+  pre { white-space:pre-wrap; word-break:break-word; font-size:12px; max-height:360px; overflow:auto; background:var(--bg); padding:10px; border-radius:10px; }
+  #toast { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#222; color:#fff; padding:10px 16px; border-radius:10px; display:none; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🫧 Admin Mochi Studio</h1>
+  <span id="who" class="muted"></span>
+  <button class="btn" id="logoutBtn" hidden>Keluar</button>
+</header>
+<main>
+  <section id="login" class="card">
+    <p>Masuk dengan akun Google yang terdaftar di <code>ADMIN_EMAILS</code>.</p>
+    <div id="gbtn"></div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="stats" id="stats"></div>
+    <nav>
+      <button data-tab="orders" class="on">💳 Pembayaran</button>
+      <button data-tab="users">👤 Pengguna</button>
+      <button data-tab="jobs">🎬 Video</button>
+      <button data-tab="settings">⚙️ Pengaturan</button>
+    </nav>
+
+    <div data-view="orders">
+      <div class="row" style="margin-bottom:10px">
+        <select id="orderFilter">
+          <option value="claimed">Menunggu konfirmasi</option>
+          <option value="pending">Belum dibayar</option>
+          <option value="expired">Kedaluwarsa</option>
+          <option value="approved">Disetujui</option>
+          <option value="rejected">Ditolak</option>
+          <option value="all">Semua</option>
+        </select>
+        <button class="btn" id="orderRefresh">↻ Muat ulang</button>
+      </div>
+      <p class="muted">Cocokkan <b>nominal persis</b> dengan mutasi rekening/aplikasi merchant QRIS sebelum menyetujui.</p>
+      <div class="card"><table><thead><tr><th>Nominal</th><th>Pengguna</th><th>Kredit</th><th>Waktu</th><th></th></tr></thead><tbody id="orders"></tbody></table></div>
+    </div>
+
+    <div data-view="users" hidden>
+      <div class="row" style="margin-bottom:10px"><input id="userQ" placeholder="Cari email / nama" /><button class="btn" id="userSearch">Cari</button></div>
+      <div class="card"><table><thead><tr><th>Pengguna</th><th>Kredit</th><th>Aksi</th></tr></thead><tbody id="users"></tbody></table></div>
+    </div>
+
+    <div data-view="jobs" hidden>
+      <div class="card"><table><thead><tr><th>Status</th><th>Pengguna</th><th>Ide</th><th>Waktu</th></tr></thead><tbody id="jobs"></tbody></table></div>
+    </div>
+
+    <div data-view="settings" hidden>
+      <div class="card">
+        <p class="muted">Isi <code>providerId</code>/<code>modelId</code> sesuai daftar model Toonflow di bawah. Harga paket dalam kredit; harga top-up dalam Rupiah. <code>video.mode</code> kosongkan untuk otomatis (gambar karakter jadi frame/referensi).</p>
+        <textarea id="settings" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:10px"><button class="btn ok" id="saveSettings">Simpan</button></div>
+      </div>
+      <div class="card">
+        <div class="row"><b style="flex:1">Model yang tersedia di Toonflow</b><button class="btn" id="loadModels">Muat</button></div>
+        <pre id="models">Tekan "Muat". Atur provider & API key di UI Toonflow (lewat SSH tunnel).</pre>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const rupiah = (n) => 'Rp' + Number(n).toLocaleString('id-ID');
+const when = (t) => t ? new Date(t).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' }) : '-';
+let token = localStorage.getItem('studioAdmin') || '';
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => (t.style.display = 'none'), 3000); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401) { signOut(); throw new Error('Sesi habis'); }
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k.startsWith('on') ? e.addEventListener(k.slice(2), v) : e.setAttribute(k, v);
+  for (const k of kids) e.append(k instanceof Node ? k : document.createTextNode(String(k ?? '')));
+  return e;
+}
+
+function signOut() { token = ''; localStorage.removeItem('studioAdmin'); $('#app').hidden = true; $('#login').hidden = false; $('#logoutBtn').hidden = true; $('#who').textContent = ''; }
+
+async function onGoogle({ credential }) {
+  try {
+    const r = await fetch('/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) }).then((x) => x.json());
+    if (!r.token) throw new Error(r.error || 'Login gagal');
+    if (!r.user.isAdmin) throw new Error('Akun ini bukan admin');
+    token = r.token; localStorage.setItem('studioAdmin', token); start();
+  } catch (e) { toast(e.message); }
+}
+
+async function start() {
+  try {
+    const me = await api('/me');
+    if (!me.user.isAdmin) { signOut(); return toast('Akun ini bukan admin'); }
+    $('#who').textContent = me.user.email;
+    $('#login').hidden = true; $('#app').hidden = false; $('#logoutBtn').hidden = false;
+    loadStats(); loadOrders();
+  } catch (e) { toast(e.message); }
+}
+
+async function loadStats() {
+  const s = await api('/admin/summary');
+  $('#stats').replaceChildren(
+    el('div', {}, el('b', {}, s.claimed), 'menunggu konfirmasi'),
+    el('div', {}, el('b', {}, s.activeJobs), 'video diproses'),
+    el('div', {}, el('b', {}, s.users), 'pengguna'),
+    el('div', {}, el('b', {}, rupiah(s.revenue)), 'top-up disetujui'),
+    ...(s.qris ? [] : [el('div', {}, el('b', {}, '⚠️'), 'QRIS_STATIC belum diisi')])
+  );
+}
+
+async function loadOrders() {
+  const rows = await api('/admin/orders?status=' + $('#orderFilter').value);
+  $('#orders').replaceChildren(...(rows.length ? rows.map((o) => el('tr', {},
+    el('td', {}, el('div', { class: 'amount' }, rupiah(o.amount)), el('div', { class: 'muted' }, 'harga ' + rupiah(o.price))),
+    el('td', {}, o.name, el('div', { class: 'muted' }, o.email)),
+    el('td', {}, o.credits),
+    el('td', { class: 'muted' }, 'dibuat ' + when(o.created), el('br'), o.claimed_at ? 'klaim ' + when(o.claimed_at) : '', o.decided_by ? el('div', {}, o.status + ' oleh ' + o.decided_by) : ''),
+    el('td', {}, ['pending', 'claimed', 'expired'].includes(o.status) ? el('div', { class: 'row' },
+      el('button', { class: 'btn ok', onclick: () => decide(o, true) }, 'Setujui'),
+      el('button', { class: 'btn bad', onclick: () => decide(o, false) }, 'Tolak')) : o.status)
+  )) : [el('tr', {}, el('td', { colspan: 5, class: 'muted' }, 'Tidak ada data'))]));
+}
+
+async function decide(o, ok) {
+  if (!confirm(`${ok ? 'SETUJUI' : 'TOLAK'} pembayaran ${rupiah(o.amount)} dari ${o.email}?${ok ? `\n${o.credits} kredit akan ditambahkan.` : ''}`)) return;
+  try { await api(`/admin/orders/${o.id}/${ok ? 'approve' : 'reject'}`, { method: 'POST' }); toast('Tersimpan'); loadOrders(); loadStats(); } catch (e) { toast(e.message); }
+}
+
+async function loadUsers() {
+  const rows = await api('/admin/users?q=' + encodeURIComponent($('#userQ').value));
+  $('#users').replaceChildren(...rows.map((u) => el('tr', {},
+    el('td', {}, u.name, el('div', { class: 'muted' }, u.email + (u.banned ? ' · DIBLOKIR' : ''))),
+    el('td', {}, u.credits),
+    el('td', {}, el('div', { class: 'row' },
+      el('button', { class: 'btn', onclick: () => adjust(u) }, '± Kredit'),
+      el('button', { class: 'btn bad', onclick: () => ban(u) }, u.banned ? 'Buka blokir' : 'Blokir')))
+  )));
+}
+
+async function adjust(u) {
+  const v = prompt(`Ubah kredit ${u.email} (saldo ${u.credits}). Contoh: 10 atau -5`);
+  if (!v) return;
+  const reason = prompt('Alasan (dicatat):') || '';
+  try { await api(`/admin/users/${u.id}/credits`, { method: 'POST', body: JSON.stringify({ delta: parseInt(v, 10), reason }) }); toast('Kredit diperbarui'); loadUsers(); } catch (e) { toast(e.message); }
+}
+
+async function ban(u) {
+  if (!confirm(`${u.banned ? 'Buka blokir' : 'Blokir'} ${u.email}?`)) return;
+  try { await api(`/admin/users/${u.id}/ban`, { method: 'POST', body: JSON.stringify({ banned: !u.banned }) }); loadUsers(); } catch (e) { toast(e.message); }
+}
+
+async function loadJobs() {
+  const rows = await api('/admin/jobs');
+  $('#jobs').replaceChildren(...rows.map((j) => el('tr', {},
+    el('td', {}, j.status, el('div', { class: 'muted' }, j.step + (j.status === 'running' ? ` · ${Math.round(j.progress * 100)}%` : ''))),
+    el('td', { class: 'muted' }, j.email),
+    el('td', {}, j.idea.slice(0, 120), j.error ? el('div', { class: 'muted' }, j.error) : ''),
+    el('td', { class: 'muted' }, when(j.created))
+  )));
+}
+
+async function loadSettings() { $('#settings').value = JSON.stringify(await api('/admin/settings'), null, 2); }
+
+$('#saveSettings').onclick = async () => {
+  try { const s = JSON.parse($('#settings').value); await api('/admin/settings', { method: 'PUT', body: JSON.stringify(s) }); toast('Pengaturan disimpan'); }
+  catch (e) { toast(e.message); }
+};
+$('#loadModels').onclick = async () => { $('#models').textContent = 'Memuat…'; try { $('#models').textContent = JSON.stringify(await api('/admin/models'), null, 2); } catch (e) { $('#models').textContent = e.message; } };
+$('#orderFilter').onchange = loadOrders;
+$('#orderRefresh').onclick = () => { loadOrders(); loadStats(); };
+$('#userSearch').onclick = loadUsers;
+$('#logoutBtn').onclick = () => { api('/auth/logout', { method: 'POST' }).catch(() => {}); signOut(); };
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('[data-view]').forEach((v) => (v.hidden = v.dataset.view !== b.dataset.tab));
+  ({ orders: loadOrders, users: loadUsers, jobs: loadJobs, settings: loadSettings })[b.dataset.tab]().catch((e) => toast(e.message));
+});
+setInterval(() => { if (token && !$('#app').hidden) loadStats().catch(() => {}); }, 30000);
+
+window.addEventListener('load', async () => {
+  const { googleClientId } = await fetch('/config').then((r) => r.json());
+  const init = () => {
+    if (!window.google?.accounts) return setTimeout(init, 200);
+    google.accounts.id.initialize({ client_id: googleClientId, callback: onGoogle });
+    google.accounts.id.renderButton($('#gbtn'), { theme: 'filled_black', size: 'large', shape: 'pill' });
+  };
+  init();
+  if (token) start();
+});
+</script>
+</body>
+</html>

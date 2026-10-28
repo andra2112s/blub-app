@@ -1,0 +1,16 @@
+{
+  "name": "mochi-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mochi Studio — gateway VPS: login Google, kredit QRIS, dan pembuatan video lewat Toonflow",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "mock:toonflow": "node test/mockToonflow.mjs",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
+  }
+}

@@ -1,0 +1,54 @@
+# Mochi Studio di VPS: Caddy (HTTPS) → Studio (login, kredit, antrean) → Toonflow (mesin video)
+# Jalankan dari folder deploy/:  docker compose up -d --build
+# JANGAN PERNAH: docker compose down -v  (menghapus semua data, termasuk saldo kredit pengguna)
+name: mochi
+
+services:
+  toonflow:
+    # Dikunci ke tag rilis resmi. Naikkan versi hanya setelah diuji (API internal bisa berubah).
+    build:
+      context: https://github.com/HBAI-Ltd/Toonflow-app.git#v2.0.7
+    init: true
+    restart: unless-stopped
+    ports:
+      # Hanya untuk admin lewat SSH tunnel. Toonflow tidak punya login — jangan buka ke publik.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - toonflowData:/app/data
+
+  studio:
+    build: ../studio
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8787"
+      TOONFLOW_URL: http://toonflow:3000
+      TOONFLOW_DATA_LOCAL: /toonflow-data
+      TOONFLOW_DATA_REMOTE: /app/data
+      DB_PATH: /data/studio.db
+    volumes:
+      - toonflowData:/toonflow-data
+      - studioData:/data
+    depends_on:
+      - toonflow
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddyData:/data
+      - caddyConfig:/config
+    depends_on:
+      - studio
+
+volumes:
+  toonflowData:
+  studioData:
+  caddyData:
+  caddyConfig:
